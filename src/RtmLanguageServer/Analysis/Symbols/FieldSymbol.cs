@@ -11,7 +11,13 @@ public sealed record FieldSymbol(
     : RtmSymbol(Name, Uri, Range, SelectionRange, Detail)
 {
     public override string Label => "data field";
-    public override string Markdown => $"**Data Field:** {Name}";
+
+    public override string GetMarkdown()
+    {
+        var dimensionsText = $"[{string.Join(" * ", Dimensions ?? [])}]";
+        return $"{Name} {EditMask} {dimensionsText}";
+    }
+
     public string? EditMask { get; set; }
     public int[]? Dimensions { get; set; }
     public string? AssignedFrom { get; set; }

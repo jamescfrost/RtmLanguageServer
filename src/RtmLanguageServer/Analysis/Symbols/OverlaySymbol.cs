@@ -11,5 +11,7 @@ public sealed record OverlaySymbol(
     : RtmSymbol(Name, Uri, Range, SelectionRange, Detail)
 {
     public override string Label => "overlay";
-    public override string Markdown => $"**Overlay:** {Name}";
+    public override string GetMarkdown() => $"**Overlay:** {Name}";
+
+    public List<RtmSymbol> Children { get; } = [];
 }

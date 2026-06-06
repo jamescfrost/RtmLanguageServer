@@ -11,5 +11,5 @@ public sealed record ExternalSymbol(
     : RtmSymbol(Name, Uri, Range, SelectionRange, Detail)
 {
     public override string Label => "external";
-    public override string Markdown => $"**External:** {Name}";
+    public override string GetMarkdown() => $"**External:** {Name}";
 }

@@ -11,5 +11,5 @@ public sealed record ParameterSymbol(
     : RtmSymbol(Name, Uri, Range, SelectionRange, Detail)
 {
     public override string Label => "parameter";
-    public override string Markdown => $"**Parameter:** {Name}";
+    public override string GetMarkdown() => $"**Parameter:** {Name}";
 }

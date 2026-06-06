@@ -2,7 +2,7 @@ using RtmLanguageServer.Analysis.Core;
 
 namespace RtmLanguageServer.Analysis.Symbols;
 
-public sealed record ProcedureSymbol(
+public record ProcedureSymbol(
     string Name,
     string Uri,
     TextRange Range,
@@ -11,5 +11,8 @@ public sealed record ProcedureSymbol(
     : RtmSymbol(Name, Uri, Range, SelectionRange, Detail)
 {
     public override string Label => "procedure";
-    public override string Markdown => $"**Procedure:** {Name}";
+
+    public override string GetMarkdown() => $"{Name}({string.Join(", ", Parameters ?? [])})";
+
+    public IReadOnlyList<string>? Parameters { get; set; }
 }

@@ -11,5 +11,7 @@ public abstract record RtmSymbol(
 {
     public abstract string Label { get; }
 
-    public abstract string Markdown { get; }
+    public OverlaySymbol? Overlay { get; set; }
+
+    public abstract string GetMarkdown();
 }

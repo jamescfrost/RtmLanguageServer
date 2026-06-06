@@ -1,4 +1,3 @@
-using RtmLanguageServer.Analysis;
 using RtmLanguageServer.Analysis.Core;
 
 namespace RtmLanguageServer.Lsp;
@@ -13,7 +12,7 @@ public sealed class RtmLanguageService
     {
         if (!_documents.TryGet(request.TextDocument.Uri, out var document) || document is null) return [];
 
-        var name = ResolveSymbolName(document, request.Position);
+        var name = document.ResolveSymbolName(request.Position);
         if (string.IsNullOrWhiteSpace(name)) return [];
 
         return _documents.All
@@ -30,7 +29,7 @@ public sealed class RtmLanguageService
     {
         if (!_documents.TryGet(request.TextDocument.Uri, out var document) || document is null) return [];
 
-        var name = ResolveSymbolName(document, request.Position);
+        var name = document.ResolveSymbolName(request.Position);
         if (string.IsNullOrWhiteSpace(name)) return [];
 
         var refs = new List<Location>();
@@ -49,7 +48,7 @@ public sealed class RtmLanguageService
     {
         if (!_documents.TryGet(request.TextDocument.Uri, out var document) || document is null) return null;
 
-        var name = ResolveSymbolName(document, request.Position);
+        var name = document.ResolveSymbolName(request.Position);
         if (string.IsNullOrWhiteSpace(name)) return null;
 
         var definition = _documents.All
@@ -61,36 +60,15 @@ public sealed class RtmLanguageService
 
         if (definition is null) return null;
 
-        var currentRange = document.TokenAt(request.Position) is { } token
-            ? SourceRange.FromToken(token)
-            : definition.SelectionRange;
-
-        var references = _documents.All.Sum(d => d.Index.FindReferences(name, includeDeclaration: false).Count);
-        var declarationText = references == 1 ? "reference" : "references";
-
         return new Hover
         {
-            Range = currentRange,
             Contents = new MarkupContent
             {
                 Kind = "markdown",
-                Value =
-                    $"{definition.Markdown}\n\n**RTM {definition.Label}** `{definition.Name}`\n\n{definition.Detail ?? definition.Label}\n\nDefined in `{DisplayUri(definition.Uri)}`. {references} {declarationText}."
-            }
+                Value = $"**{definition.GetMarkdown()}"
+            },
+            Range = definition.SelectionRange
         };
-    }
-
-    private static string? ResolveSymbolName(RtmDocument document, TextPosition position)
-    {
-        // Prefer the indexed occurrence under the cursor. This means definition,
-        // reference and hover work from either a declaration or a usage.
-        var definition = document.DefinitionAt(position);
-        if (definition is not null) return definition.Name;
-
-        var reference = document.ReferenceAt(position);
-        if (reference is not null) return reference.Name;
-
-        return document.SymbolNameAt(position);
     }
 
     private static string LocationKey(Location l) =>

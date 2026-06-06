@@ -11,5 +11,5 @@ public sealed record UnknownSymbol(
     : RtmSymbol(Name, Uri, Range, SelectionRange, Detail)
 {
     public override string Label => "symbol";
-    public override string Markdown => $"**Symbol:** {Name}";
+    public override string GetMarkdown() => $"**Symbol:** {Name}";
 }
