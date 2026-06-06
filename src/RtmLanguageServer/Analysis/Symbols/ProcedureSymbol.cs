@@ -12,7 +12,12 @@ public record ProcedureSymbol(
 {
     public override string Label => "procedure";
 
-    public override string GetMarkdown() => $"{Name}({string.Join(", ", Parameters ?? [])})";
+    public IReadOnlyList<string> Parameters { get; set; } = [];
 
-    public IReadOnlyList<string>? Parameters { get; set; }
+    public override string GetMarkdown() => $"`{Name}{GetParametersMarkdown()}";
+
+    public string GetParametersMarkdown()
+    {
+        return $"({string.Join(", ", Parameters)})";
+    }
 }

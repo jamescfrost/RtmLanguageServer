@@ -11,5 +11,5 @@ public sealed record FileSymbol(
     : RtmSymbol(Name, Uri, Range, SelectionRange, Detail)
 {
     public override string Label => "file";
-    public override string GetMarkdown() => $"{Name} ";
+    public override string GetMarkdown() => $"`{Name}`";
 }

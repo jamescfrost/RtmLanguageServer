@@ -1,4 +1,4 @@
-﻿using RtmLanguageServer.Analysis.Core;
+using RtmLanguageServer.Analysis.Core;
 
 namespace RtmLanguageServer.Analysis.Symbols;
 
@@ -10,4 +10,6 @@ public sealed record ProgramSymbol(
     : ProcedureSymbol(Name, Uri, Range, SelectionRange)
 {
     public override string Label => "program";
+
+    public List<RtmSymbol> Children { get; } = [];
 }

@@ -1,4 +1,5 @@
 using RtmLanguageServer.Analysis.Core;
+using RtmLanguageServer.Analysis.Symbols;
 
 namespace RtmLanguageServer.Lsp;
 
@@ -10,10 +11,12 @@ public sealed class RtmLanguageService
 
     public IReadOnlyList<Location> GetDefinition(TextDocumentPositionParams request)
     {
-        if (!_documents.TryGet(request.TextDocument.Uri, out var document) || document is null) return [];
+        if (!_documents.TryGet(request.TextDocument.Uri, out var document) || document is null)
+            return [];
 
         var name = document.ResolveSymbolName(request.Position);
-        if (string.IsNullOrWhiteSpace(name)) return [];
+        if (string.IsNullOrWhiteSpace(name))
+            return [];
 
         return _documents.All
             .SelectMany(d => d.Index.FindDefinitions(name))
@@ -27,10 +30,12 @@ public sealed class RtmLanguageService
 
     public IReadOnlyList<Location> FindReferences(ReferenceParams request)
     {
-        if (!_documents.TryGet(request.TextDocument.Uri, out var document) || document is null) return [];
+        if (!_documents.TryGet(request.TextDocument.Uri, out var document) || document is null)
+            return [];
 
         var name = document.ResolveSymbolName(request.Position);
-        if (string.IsNullOrWhiteSpace(name)) return [];
+        if (string.IsNullOrWhiteSpace(name))
+            return [];
 
         var refs = new List<Location>();
         foreach (var doc in _documents.All)
@@ -46,29 +51,59 @@ public sealed class RtmLanguageService
 
     public Hover? Hover(TextDocumentPositionParams request)
     {
-        if (!_documents.TryGet(request.TextDocument.Uri, out var document) || document is null) return null;
+        if (!_documents.TryGet(request.TextDocument.Uri, out var document) || document is null)
+            return null;
 
-        var name = document.ResolveSymbolName(request.Position);
-        if (string.IsNullOrWhiteSpace(name)) return null;
-
-        var definition = _documents.All
-            .SelectMany(d => d.Index.FindDefinitions(name))
-            .OrderByDescending(s => string.Equals(s.Uri, document.Uri, StringComparison.OrdinalIgnoreCase))
-            .ThenBy(s => s.SelectionRange.Start.Line)
-            .ThenBy(s => s.SelectionRange.Start.Character)
-            .FirstOrDefault();
-
-        if (definition is null) return null;
+        var symbol = document.ResolveSymbolAt(request.Position, _documents.All);
+        if (symbol is null)
+            return null;
 
         return new Hover
         {
             Contents = new MarkupContent
             {
                 Kind = "markdown",
-                Value = $"**{definition.GetMarkdown()}"
+                Value = BuildHoverMarkdown(symbol)
             },
-            Range = definition.SelectionRange
+            Range = symbol.SelectionRange
         };
+    }
+
+    private static string BuildHoverMarkdown(RtmSymbol symbol)
+    {
+        var lines = new List<string>
+        {
+            $"**{ToTitle(symbol.Label)}** `{symbol.Name}`"
+        };
+
+        var detail = symbol.GetMarkdown();
+        if (!string.IsNullOrWhiteSpace(detail))
+            lines.Add(detail);
+
+        if (symbol is not OverlaySymbol)
+            lines.Add($"Overlay: `{symbol.Name}`");
+
+        if (symbol is OverlaySymbol overlayWithChildren && overlayWithChildren.Children.Count > 0)
+        {
+            var childSummary = overlayWithChildren.Children
+                .GroupBy(c => c.Label)
+                .OrderBy(g => g.Key)
+                .Select(g => $"{g.Count()} {g.Key}");
+
+            lines.Add($"Children: {string.Join(", ", childSummary)}");
+        }
+
+        lines.Add($"Defined in `{DisplayUri(symbol.Uri)}`");
+
+        return string.Join("\n\n", lines);
+    }
+
+    private static string ToTitle(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return "Symbol";
+
+        return char.ToUpperInvariant(value[0]) + value[1..];
     }
 
     private static string LocationKey(Location l) =>

@@ -32,6 +32,7 @@ public sealed class RtmDocument
         var lexer = new RtmLexer(input);
         lexer.RemoveErrorListeners();
         lexer.AddErrorListener(new CollectingLexerErrorListener(diagnostics));
+        lexer.AddErrorListener(new ThrowingLexerErrorListener());
 
         var tokens = new CommonTokenStream(lexer);
         var parser = new RtmParser(tokens)
@@ -41,9 +42,13 @@ public sealed class RtmDocument
         parser.RemoveErrorListeners();
         parser.AddErrorListener(new CollectingParserErrorListener(diagnostics));
 
+        parser.AddErrorListener(new ThrowingParserErrorListener());
+
+
         var tree = parser.start();
         tokens.Fill();
 
+        ParseTreeWalker.Default.Walk(new TraceListener(), tree);
         var index = new SymbolIndex();
         ParseTreeWalker.Default.Walk(new RtmAnalyzer(uri, index), tree);
 

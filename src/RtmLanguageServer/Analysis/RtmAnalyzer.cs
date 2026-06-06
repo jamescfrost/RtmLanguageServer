@@ -11,10 +11,10 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
     private readonly string _uri;
     private readonly SymbolIndex _index;
 
-    private readonly Stack<OverlaySymbol> _overlayStack = new();
 
-    private OverlaySymbol? CurrentOverlay =>
-        _overlayStack.Count > 0 ? _overlayStack.Peek() : null;
+    private OverlaySymbol? _currentOverlay;
+
+    private ProgramSymbol? _currentProg;
 
     public RtmAnalyzer(string uri, SymbolIndex index)
     {
@@ -28,23 +28,18 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
             context.ID()?.Symbol,
             symbol =>
             {
-                var overlay = new OverlaySymbol(
+                _currentOverlay = new OverlaySymbol(
                     symbol.Name,
                     _uri,
                     symbol.Range,
                     symbol.Range);
-
-                _overlayStack.Push(overlay);
-
-                return overlay;
-            },
-            alsoReference: true);
+                return _currentOverlay;
+            });
     }
 
     public override void ExitOverlay(RtmParser.OverlayContext context)
     {
-        if (_overlayStack.Count > 0)
-            _overlayStack.Pop();
+        _currentOverlay = null;
     }
 
     public override void EnterProg(RtmParser.ProgContext context)
@@ -53,35 +48,34 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
             context.DOLLAR_PROG()?.Symbol,
             symbol =>
             {
-                var prog = new ProgramSymbol(
+                _currentProg = new ProgramSymbol(
                     "$PROG",
-                    _uri,
-                    symbol.Range,
-                    symbol.Range);
-
-                prog.Parameters = ParseParameters(context.parameter_list());
-
-                return prog;
-            },
-            alsoReference: true);
-    }
-
-    public override void EnterProc(RtmParser.ProcContext context)
-    {
-        Define(
-            context.ID()?.Symbol,
-            symbol =>
-            {
-                var proc = new ProcedureSymbol(
-                    symbol.Name,
                     _uri,
                     symbol.Range,
                     symbol.Range)
                 {
                     Parameters = ParseParameters(context.parameter_list())
                 };
+                return _currentProg;
+            });
+    }
 
-                return proc;
+    public override void ExitProg(RtmParser.ProgContext context)
+    {
+        _currentProg = null;
+    }
+
+    public override void EnterProc(RtmParser.ProcContext context)
+    {
+        Define(
+            context.ID()?.Symbol,
+            symbol => new ProcedureSymbol(
+                symbol.Name,
+                _uri,
+                symbol.Range,
+                symbol.Range)
+            {
+                Parameters = ParseParameters(context.parameter_list())
             });
     }
 
@@ -98,11 +92,8 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
             {
                 EditMask = ParseEditMask(context),
                 Dimensions = ParseDimensions(context).ToArray(),
-                AssignedFrom = context.EQUAL() is not null
-                    ? ParseFieldName(context)
-                    : null
-            },
-            alsoReference: true);
+                AssignedFrom = ParseAssignedFrom(context)
+            });
     }
 
     public override void EnterParameter_list(RtmParser.Parameter_listContext context)
@@ -111,8 +102,7 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
         {
             Define(
                 assignable.Start,
-                symbol => new ParameterSymbol(symbol.Name, _uri, symbol.Range, symbol.Range),
-                alsoReference: true);
+                symbol => new ParameterSymbol(symbol.Name, _uri, symbol.Range, symbol.Range));
         }
     }
 
@@ -122,8 +112,7 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
         {
             Define(
                 id.Symbol,
-                symbol => new FileSymbol(symbol.Name, _uri, symbol.Range, symbol.Range),
-                alsoReference: true);
+                symbol => new FileSymbol(symbol.Name, _uri, symbol.Range, symbol.Range));
         }
     }
 
@@ -133,8 +122,7 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
         {
             Define(
                 id.Symbol,
-                symbol => new ExternalSymbol(symbol.Name, _uri, symbol.Range, symbol.Range),
-                alsoReference: true);
+                symbol => new ExternalSymbol(symbol.Name, _uri, symbol.Range, symbol.Range));
         }
     }
 
@@ -145,6 +133,8 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
 
     public override void EnterFunction_call(RtmParser.Function_callContext context)
     {
+        // function_call: (ID | OVERLAY ID) call_parameter_list;
+        // The function/procedure name is the last ID in this rule.
         Reference(context.ID()?.Symbol);
     }
 
@@ -159,8 +149,7 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
 
     private void Define(
         IToken? token,
-        Func<PendingSymbol, RtmSymbol> createSymbol,
-        bool alsoReference = false)
+        Func<PendingSymbol, RtmSymbol> createSymbol)
     {
         if (token is null || token.Type == TokenConstants.EOF)
             return;
@@ -172,16 +161,17 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
         var range = SourceRange.FromToken(token);
         var symbol = createSymbol(new PendingSymbol(name, range));
 
-        _index.AddDefinition(symbol);
-
-        if (CurrentOverlay is not null && symbol is not OverlaySymbol)
+        if (_currentOverlay is not null && symbol is not OverlaySymbol)
         {
-            symbol.Overlay = CurrentOverlay;
-            CurrentOverlay.Children.Add(symbol);
+            symbol.Overlay = _currentOverlay;
+            _currentOverlay.Children.Add(symbol);
+            if (_currentProg is not null && symbol is not ProgramSymbol)
+            {
+                _currentProg.Children.Add(symbol);
+            }
         }
 
-        if (alsoReference)
-            _index.AddReference(name, new Location(_uri, range));
+        _index.AddDefinition(symbol);
     }
 
     private void Reference(IToken? token)
@@ -211,12 +201,20 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
         return nodes.Length > 0 ? nodes[0].Symbol.Text : null;
     }
 
-    private static string ParseFieldName(RtmParser.Data_fieldContext context)
+    private static string? LastTerminalText(ITerminalNode[] nodes)
     {
-        return FirstTerminalText(context.DATA_ID_OR_MASK())
-               ?? FirstTerminalText(context.FIELD_ID())
-               ?? context.FILL()?.Symbol.Text
-               ?? "FIELD";
+        return nodes.Length > 0 ? nodes[^1].Symbol.Text : null;
+    }
+
+    private static string? ParseAssignedFrom(RtmParser.Data_fieldContext context)
+    {
+        if (context.EQUAL() is null)
+            return null;
+
+        // For "A = B", ANTLR exposes both A and B through the same token accessors.
+        // The assigned-from value is therefore the last field-like token in the rule.
+        return LastTerminalText(context.DATA_ID_OR_MASK())
+               ?? LastTerminalText(context.FIELD_ID());
     }
 
     private static string? ParseEditMask(RtmParser.Data_fieldContext context)
@@ -234,7 +232,7 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
         }
     }
 
-    private static List<string> ParseParameters(RtmParser.Parameter_listContext? context)
+    private static IReadOnlyList<string> ParseParameters(RtmParser.Parameter_listContext? context)
     {
         var result = new List<string>();
 
@@ -246,10 +244,12 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
             switch (child)
             {
                 case RtmParser.AssignableContext assignable:
-                    result.Add(assignable.GetText());
+                    var name = CleanName(assignable.GetText());
+                    if (!string.IsNullOrWhiteSpace(name))
+                        result.Add(name);
                     break;
-                case ITerminalNode terminal when
-                    terminal.Symbol.Type == RtmParser.STAR:
+
+                case ITerminalNode terminal when terminal.Symbol.Type == RtmParser.STAR:
                     result.Add("*");
                     break;
             }

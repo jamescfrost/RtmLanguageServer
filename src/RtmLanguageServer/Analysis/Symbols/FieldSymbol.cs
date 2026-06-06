@@ -12,13 +12,23 @@ public sealed record FieldSymbol(
 {
     public override string Label => "data field";
 
-    public override string GetMarkdown()
-    {
-        var dimensionsText = $"[{string.Join(" * ", Dimensions ?? [])}]";
-        return $"{Name} {EditMask} {dimensionsText}";
-    }
-
     public string? EditMask { get; set; }
     public int[]? Dimensions { get; set; }
     public string? AssignedFrom { get; set; }
+
+    public override string GetMarkdown()
+    {
+        var parts = new List<string> { $"`{Name}`" };
+
+        if (!string.IsNullOrWhiteSpace(EditMask))
+            parts.Add($"mask `{EditMask}`");
+
+        if (Dimensions is { Length: > 0 })
+            parts.Add($"dimensions `{string.Join(" × ", Dimensions)}`");
+
+        if (!string.IsNullOrWhiteSpace(AssignedFrom))
+            parts.Add($"assigned from `{AssignedFrom}`");
+
+        return string.Join("  ", parts);
+    }
 }
