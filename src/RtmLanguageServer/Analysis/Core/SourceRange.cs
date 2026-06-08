@@ -4,7 +4,7 @@ namespace RtmLanguageServer.Analysis.Core;
 
 public static class SourceRange
 {
-    public static TextRange FromToken(IToken token)
+    public static TextRange GetRange(this IToken token)
     {
         var text = token.Text ?? string.Empty;
         var start = new TextPosition(Math.Max(token.Line - 1, 0), Math.Max(token.Column, 0));
@@ -12,7 +12,7 @@ public static class SourceRange
         return new TextRange(start, end);
     }
 
-    public static bool Contains(TextRange range, TextPosition position)
+    public static bool Contains(this TextRange range, TextPosition position)
     {
         if (position.Line < range.Start.Line || position.Line > range.End.Line) return false;
         if (position.Line == range.Start.Line && position.Character < range.Start.Character) return false;
@@ -23,7 +23,7 @@ public static class SourceRange
         return true;
     }
 
-    public static bool SameSpan(Location left, Location right) =>
+    public static bool SameSpan(this Location left, Location right) =>
         string.Equals(left.Uri, right.Uri, StringComparison.OrdinalIgnoreCase)
         && left.Range.Start.Line == right.Range.Start.Line
         && left.Range.Start.Character == right.Range.Start.Character

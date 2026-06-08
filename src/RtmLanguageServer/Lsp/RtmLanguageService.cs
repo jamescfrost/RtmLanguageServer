@@ -14,18 +14,11 @@ public sealed class RtmLanguageService
         if (!_documents.TryGet(request.TextDocument.Uri, out var document) || document is null)
             return [];
 
-        var name = document.ResolveSymbolName(request.Position);
-        if (string.IsNullOrWhiteSpace(name))
+        var symbol = document.ResolveSymbolAt(request.Position, _documents.All);
+        if (symbol is null)
             return [];
 
-        return _documents.All
-            .SelectMany(d => d.Index.FindDefinitions(name))
-            .Select(s => new Location(s.Uri, s.SelectionRange))
-            .DistinctBy(LocationKey)
-            .OrderBy(l => l.Uri)
-            .ThenBy(l => l.Range.Start.Line)
-            .ThenBy(l => l.Range.Start.Character)
-            .ToList();
+        return [symbol.Location];
     }
 
     public IReadOnlyList<Location> FindReferences(ReferenceParams request)
@@ -33,13 +26,13 @@ public sealed class RtmLanguageService
         if (!_documents.TryGet(request.TextDocument.Uri, out var document) || document is null)
             return [];
 
-        var name = document.ResolveSymbolName(request.Position);
-        if (string.IsNullOrWhiteSpace(name))
+        var symbol = document.ResolveSymbolAt(request.Position, _documents.All);
+        if (symbol is null)
             return [];
 
         var refs = new List<Location>();
         foreach (var doc in _documents.All)
-            refs.AddRange(doc.Index.FindReferences(name, request.Context.IncludeDeclaration));
+            refs.AddRange(doc.Index.FindReferences(symbol, request.Context.IncludeDeclaration));
 
         return refs
             .DistinctBy(LocationKey)
@@ -65,7 +58,7 @@ public sealed class RtmLanguageService
                 Kind = "markdown",
                 Value = BuildHoverMarkdown(symbol)
             },
-            Range = symbol.SelectionRange
+            Range = symbol.Location.Range
         };
     }
 
@@ -80,8 +73,8 @@ public sealed class RtmLanguageService
         if (!string.IsNullOrWhiteSpace(detail))
             lines.Add(detail);
 
-        if (symbol is not OverlaySymbol)
-            lines.Add($"Overlay: `{symbol.Name}`");
+        if (symbol is not OverlaySymbol && symbol.Overlay is not null)
+            lines.Add($"Overlay: `{symbol.Overlay.Name}`");
 
         if (symbol is OverlaySymbol overlayWithChildren && overlayWithChildren.Children.Count > 0)
         {
@@ -93,7 +86,7 @@ public sealed class RtmLanguageService
             lines.Add($"Children: {string.Join(", ", childSummary)}");
         }
 
-        lines.Add($"Defined in `{DisplayUri(symbol.Uri)}`");
+        lines.Add($"Defined in `{DisplayUri(symbol.Location.Uri)}`");
 
         return string.Join("\n\n", lines);
     }

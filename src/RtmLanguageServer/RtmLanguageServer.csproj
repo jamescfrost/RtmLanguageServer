@@ -15,6 +15,9 @@
 
   <ItemGroup>
     <Antlr4 Include="Grammar/RtmLexer.g4" Listener="true" Visitor="false" Package="RtmLanguageServer.Generated" />
-    <Antlr4 Include="Grammar/RtmParser.g4" Listener="true" Visitor="false" Package="RtmLanguageServer.Generated" />
+    <Antlr4 Include="Grammar\RtmParser.g4">
+      <Package>RtmLanguageServer.Generated</Package>
+      <Visitor>false</Visitor>
+    </Antlr4>
   </ItemGroup>
 </Project>

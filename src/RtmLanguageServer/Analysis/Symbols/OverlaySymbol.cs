@@ -4,21 +4,24 @@ namespace RtmLanguageServer.Analysis.Symbols;
 
 public sealed record OverlaySymbol(
     string Name,
-    string Uri,
-    TextRange Range,
-    TextRange SelectionRange,
-    string? Detail = null)
-    : RtmSymbol(Name, Uri, Range, SelectionRange, Detail)
+    Location Location)
+    : RtmSymbol(Name, Location)
 {
     public override string Label => "overlay";
 
-    public override string GetMarkdown() => $"{Name}{GetParametersMarkdown()}";
+    public override string GetMarkdown() => $"`{Name}{GetParametersMarkdown()}`";
 
     public List<RtmSymbol> Children { get; } = [];
 
-    private string GetParametersMarkdown()
-    {
-        var prog = Children.OfType<ProgramSymbol>().FirstOrDefault(p => p.Name == "$PROG");
-        return prog?.GetParametersMarkdown() ?? "()";
-    }
+    public IEnumerable<FileSymbol> Files => Children.OfType<FileSymbol>();
+    public IEnumerable<ExternalSymbol> Externals => Children.OfType<ExternalSymbol>();
+    public IEnumerable<FieldSymbol> Fields => Children.OfType<FieldSymbol>();
+
+    public IEnumerable<ProcedureSymbol> Procedures =>
+        Children.OfType<ProcedureSymbol>().Where(p => p is not ProgramSymbol);
+
+    public ProgramSymbol? Program => Children.OfType<ProgramSymbol>().FirstOrDefault();
+    public IEnumerable<IncludeReference> Includes => Children.OfType<IncludeReference>();
+
+    private string GetParametersMarkdown() => Program?.GetParametersMarkdown() ?? "()";
 }

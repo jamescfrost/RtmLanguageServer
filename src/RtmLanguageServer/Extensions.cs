@@ -8,8 +8,6 @@ public static class Extensions
 {
     public static string? ResolveSymbolName(this RtmDocument document, TextPosition position)
     {
-        // Prefer the indexed occurrence under the cursor. This means definition,
-        // reference and hover work from either a declaration or a usage.
         var definition = document.DefinitionAt(position);
         if (definition is not null) return definition.Name;
 
@@ -19,7 +17,6 @@ public static class Extensions
         return document.SymbolNameAt(position);
     }
 
-
     public static RtmSymbol? ResolveSymbolAt(this RtmDocument document,
         TextPosition position, IEnumerable<RtmDocument> documents)
     {
@@ -27,15 +24,22 @@ public static class Extensions
         if (localDefinition is not null)
             return localDefinition;
 
-        var name = document.ResolveSymbolName(position);
+        var localReference = document.ReferenceAt(position);
+        if (localReference?.ResolvedSymbol is not null)
+            return localReference.ResolvedSymbol;
+
+        var name = localReference is null
+            ? document.ResolveSymbolName(position)
+            : localReference.Name;
+
         if (string.IsNullOrWhiteSpace(name))
             return null;
 
         return documents
             .SelectMany(d => d.Index.FindDefinitions(name))
-            .OrderByDescending(s => string.Equals(s.Uri, document.Uri, StringComparison.OrdinalIgnoreCase))
-            .ThenBy(s => s.SelectionRange.Start.Line)
-            .ThenBy(s => s.SelectionRange.Start.Character)
+            .OrderByDescending(s => string.Equals(s.Location.Uri, document.Uri, StringComparison.OrdinalIgnoreCase))
+            .ThenBy(s => s.Location.Range.Start.Line)
+            .ThenBy(s => s.Location.Range.Start.Character)
             .FirstOrDefault();
     }
 }

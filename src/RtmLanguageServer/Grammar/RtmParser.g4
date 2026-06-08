@@ -5,7 +5,7 @@ options {
 }
 
 start
-    : SOURCE_DESCRIPTION source_member* source_end? EOF
+    : SOURCE_DESCRIPTION? source_member* source_end? EOF
     ;
 
 source_member
@@ -19,7 +19,7 @@ source_end
     ;
 
 name_definition
-    : DOLLAR_NAME (NAME_ID | NAME_END) FREE_TEXT*
+    : DOLLAR_NAME (ID | NAME_END) FREE_TEXT*
     ;
 
 name_include

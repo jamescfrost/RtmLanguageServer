@@ -4,20 +4,15 @@ namespace RtmLanguageServer.Analysis.Symbols;
 
 public record ProcedureSymbol(
     string Name,
-    string Uri,
-    TextRange Range,
-    TextRange SelectionRange,
-    string? Detail = null)
-    : RtmSymbol(Name, Uri, Range, SelectionRange, Detail)
+    Location Location)
+    : RtmSymbol(Name, Location)
 {
     public override string Label => "procedure";
 
-    public IReadOnlyList<string> Parameters { get; set; } = [];
+    public List<FieldReference> Parameters { get; } = [];
 
-    public override string GetMarkdown() => $"`{Name}{GetParametersMarkdown()}";
+    public override string GetMarkdown() => $"`{Name}{GetParametersMarkdown()}`";
 
-    public string GetParametersMarkdown()
-    {
-        return $"({string.Join(", ", Parameters)})";
-    }
+    public string GetParametersMarkdown() =>
+        $"({string.Join(", ", Parameters.Select(p => p.Name))})";
 }

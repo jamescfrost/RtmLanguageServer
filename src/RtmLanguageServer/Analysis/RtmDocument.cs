@@ -9,15 +9,22 @@ namespace RtmLanguageServer.Analysis;
 public sealed class RtmDocument
 {
     private readonly CommonTokenStream _tokens;
+    public RtmPreprocessedSource Preprocessed { get; }
 
-    private RtmDocument(string uri, string text, CommonTokenStream tokens, SymbolIndex index,
-        IReadOnlyList<string> diagnostics)
+    private RtmDocument(
+        string uri,
+        string text,
+        CommonTokenStream tokens,
+        SymbolIndex index,
+        IReadOnlyList<string> diagnostics,
+        RtmPreprocessedSource preprocessed)
     {
         Uri = uri;
         Text = text;
         _tokens = tokens;
         Index = index;
         Diagnostics = diagnostics;
+        Preprocessed = preprocessed;
     }
 
     public string Uri { get; }
@@ -28,31 +35,58 @@ public sealed class RtmDocument
     public static RtmDocument Parse(string uri, string text)
     {
         var diagnostics = new List<string>();
-        var input = new AntlrInputStream(text);
+
+        var preprocessed = RtmPreprocessor.Process(text);
+
+        var input = new AntlrInputStream(preprocessed.Text);
         var lexer = new RtmLexer(input);
+
         lexer.RemoveErrorListeners();
         lexer.AddErrorListener(new CollectingLexerErrorListener(diagnostics));
         lexer.AddErrorListener(new ThrowingLexerErrorListener());
 
         var tokens = new CommonTokenStream(lexer);
+
         var parser = new RtmParser(tokens)
         {
             BuildParseTree = true
         };
+
         parser.RemoveErrorListeners();
         parser.AddErrorListener(new CollectingParserErrorListener(diagnostics));
-
         parser.AddErrorListener(new ThrowingParserErrorListener());
-
 
         var tree = parser.start();
         tokens.Fill();
 
-        ParseTreeWalker.Default.Walk(new TraceListener(), tree);
         var index = new SymbolIndex();
-        ParseTreeWalker.Default.Walk(new RtmAnalyzer(uri, index), tree);
 
-        return new RtmDocument(uri, text, tokens, index, diagnostics);
+        foreach (var section in preprocessed.NameSections.Values)
+        {
+            var range = new TextRange(
+                new TextPosition(section.HeaderLine - 1, section.HeaderColumn),
+                new TextPosition(section.HeaderLine - 1, section.HeaderColumn + section.Name.Length));
+
+            index.AddDefinition(new NameIncludeSymbol(
+                section.Name,
+                new Location(uri, range)));
+        }
+
+        ParseTreeWalker.Default.Walk(
+            new RtmAnalyzer(uri, index, preprocessed),
+            tree);
+
+        var document = new RtmDocument(
+            uri,
+            text,
+            tokens,
+            index,
+            diagnostics,
+            preprocessed);
+
+        SemanticResolver.Resolve(document);
+
+        return document;
     }
 
     public IToken? TokenAt(TextPosition position)
@@ -61,8 +95,8 @@ public sealed class RtmDocument
         {
             if (token.Type == TokenConstants.EOF) continue;
             if (token.Channel != TokenConstants.DefaultChannel) continue;
-            var range = SourceRange.FromToken(token);
-            if (SourceRange.Contains(range, position)) return token;
+            var range = token.GetRange();
+            if (range.Contains(position)) return token;
         }
 
         return null;
@@ -114,5 +148,17 @@ public sealed class RtmDocument
         public void SyntaxError(TextWriter output, IRecognizer recognizer, IToken offendingSymbol, int line,
             int charPositionInLine, string msg, RecognitionException e)
             => _diagnostics.Add($"Parser {line}:{charPositionInLine}: {msg}");
+    }
+
+    public TextRange MapGeneratedRange(TextRange generatedRange)
+    {
+        return Preprocessed.MapRange(generatedRange);
+    }
+
+    public Location MapGeneratedLocation(Location generatedLocation)
+    {
+        return new Location(
+            generatedLocation.Uri,
+            MapGeneratedRange(generatedLocation.Range));
     }
 }
