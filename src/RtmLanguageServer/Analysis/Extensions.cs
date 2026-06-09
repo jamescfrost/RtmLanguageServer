@@ -42,8 +42,16 @@ public static class Extensions
             .OrderBy(r => SpanLength(r.Location.Range))
             .FirstOrDefault();
 
+        if (exactReference is OverlayReference overlayReference)
+        {
+            var overlayDefinition = FindWorkspaceOverlayDefinition(overlayReference.Name, allDocuments, document.Uri);
+            if (overlayDefinition is not null)
+                return overlayDefinition;
+        }
+
         if (exactReference?.ResolvedSymbol is not null)
-            return exactReference.ResolvedSymbol;
+            return RedirectExternalToWorkspaceOverlay(exactReference.ResolvedSymbol, allDocuments, document.Uri)
+                ?? exactReference.ResolvedSymbol;
 
         var name = exactReference?.Name ?? document.ResolveSymbolName(position);
         if (string.IsNullOrWhiteSpace(name))
@@ -71,10 +79,18 @@ public static class Extensions
         if (symbol is not ExternalSymbol)
             return null;
 
+        return FindWorkspaceOverlayDefinition(symbol.Name, documents, currentUri);
+    }
+
+    private static OverlaySymbol? FindWorkspaceOverlayDefinition(
+        string name,
+        IEnumerable<RtmDocument> documents,
+        string currentUri)
+    {
         return documents
-            .SelectMany(d => d.Index.FindDefinitions(symbol.Name))
+            .SelectMany(d => d.Index.FindDefinitions(name))
             .OfType<OverlaySymbol>()
-            .OrderByDescending(s => !string.Equals(s.Location.Uri, currentUri, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(s => string.Equals(s.Location.Uri, currentUri, StringComparison.OrdinalIgnoreCase))
             .ThenBy(s => s.Location.Range.Start.Line)
             .ThenBy(s => s.Location.Range.Start.Character)
             .FirstOrDefault();

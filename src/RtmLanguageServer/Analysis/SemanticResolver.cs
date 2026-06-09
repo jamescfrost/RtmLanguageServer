@@ -21,9 +21,6 @@ namespace RtmLanguageServer.Analysis
 
             foreach (var reference in document.Index.AllReferences)
             {
-                if (reference.ResolvedSymbol != null)
-                    continue;
-
                 var candidates = snapshot
                     .SelectMany(d => d.Index.AllDefinitions)
                     .Where(s => string.Equals(s.Name, reference.Name, StringComparison.OrdinalIgnoreCase))
@@ -34,7 +31,17 @@ namespace RtmLanguageServer.Analysis
                     .ThenBy(s => s.Location.Range.Start.Character)
                     .ToList();
 
-                reference.ResolvedSymbol = candidates.FirstOrDefault();
+                var bestCandidate = candidates.FirstOrDefault();
+
+                if (bestCandidate is null)
+                    continue;
+
+                if (reference.ResolvedSymbol is null
+                    || reference is OverlayReference
+                    || SymbolTypeScore(reference, bestCandidate) > SymbolTypeScore(reference, reference.ResolvedSymbol))
+                {
+                    reference.ResolvedSymbol = bestCandidate;
+                }
             }
         }
 
