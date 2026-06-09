@@ -1,4 +1,4 @@
-﻿namespace RtmLanguageServer.Analysis;
+namespace RtmLanguageServer.Analysis;
 
 public sealed class RtmWorkspaceIndex
 {
@@ -11,7 +11,8 @@ public sealed class RtmWorkspaceIndex
 
     public void AddSource(string uri, string text)
     {
-        var sourceName = GetSourceNameFromUri(uri);
+        uri = RtmUri.Normalize(uri);
+        var sourceName = RtmUri.SourceNameFromUri(uri);
 
         var sections = RtmPreprocessor.ExtractNameSections(uri, text);
 
@@ -20,14 +21,6 @@ public sealed class RtmWorkspaceIndex
             uri,
             text,
             sections);
-    }
-
-    private static string GetSourceNameFromUri(string uri)
-    {
-        if (Uri.TryCreate(uri, UriKind.Absolute, out var parsed) && parsed.IsFile)
-            return Path.GetFileNameWithoutExtension(parsed.LocalPath).ToUpperInvariant();
-
-        return Path.GetFileNameWithoutExtension(uri).ToUpperInvariant();
     }
 
     public RtmNameSection? FindSection(

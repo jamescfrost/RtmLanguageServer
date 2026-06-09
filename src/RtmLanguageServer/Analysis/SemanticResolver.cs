@@ -39,7 +39,7 @@ namespace RtmLanguageServer.Analysis
 
         private static void ResolveIncludes(RtmDocument document, IReadOnlyCollection<RtmDocument> documents)
         {
-            var currentSourceName = GetSourceNameFromUri(document.Uri);
+            var currentSourceName = RtmUri.SourceNameFromUri(document.Uri);
 
             foreach (var include in document.Index.AllReferences.OfType<IncludeReference>())
             {
@@ -50,7 +50,7 @@ namespace RtmLanguageServer.Analysis
                 include.ResolvedSymbol = documents
                     .SelectMany(d => d.Index.AllDefinitions.OfType<NameIncludeSymbol>())
                     .Where(s => string.Equals(s.Name, include.IncludeName, StringComparison.OrdinalIgnoreCase))
-                    .Where(s => string.Equals(GetSourceNameFromUri(s.Location.Uri), targetSourceName, StringComparison.OrdinalIgnoreCase))
+                    .Where(s => string.Equals(RtmUri.SourceNameFromUri(s.Location.Uri), targetSourceName, StringComparison.OrdinalIgnoreCase))
                     .OrderBy(s => s.Location.Range.Start.Line)
                     .ThenBy(s => s.Location.Range.Start.Character)
                     .FirstOrDefault();
@@ -65,12 +65,5 @@ namespace RtmLanguageServer.Analysis
             return string.Equals(reference.Overlay.Name, symbol.Overlay.Name, StringComparison.OrdinalIgnoreCase);
         }
 
-        private static string GetSourceNameFromUri(string uri)
-        {
-            if (Uri.TryCreate(uri, UriKind.Absolute, out var parsed) && parsed.IsFile)
-                return Path.GetFileNameWithoutExtension(parsed.LocalPath).ToUpperInvariant();
-
-            return Path.GetFileNameWithoutExtension(uri).ToUpperInvariant();
-        }
     }
 }

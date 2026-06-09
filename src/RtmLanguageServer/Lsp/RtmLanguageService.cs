@@ -103,10 +103,5 @@ public sealed class RtmLanguageService
     private static string LocationKey(Location l) =>
         $"{l.Uri}:{l.Range.Start.Line}:{l.Range.Start.Character}:{l.Range.End.Line}:{l.Range.End.Character}";
 
-    private static string DisplayUri(string uri)
-    {
-        if (Uri.TryCreate(uri, UriKind.Absolute, out var parsed) && parsed.IsFile)
-            return Path.GetFileName(parsed.LocalPath);
-        return uri;
-    }
+    private static string DisplayUri(string uri) => RtmUri.DisplayName(uri);
 }

@@ -34,6 +34,7 @@ public sealed class RtmDocument
 
     public static RtmDocument Parse(string uri, string text, RtmWorkspaceIndex? workspace = null)
     {
+        uri = RtmUri.Normalize(uri);
         var diagnostics = new List<string>();
 
         workspace ??= new RtmWorkspaceIndex();

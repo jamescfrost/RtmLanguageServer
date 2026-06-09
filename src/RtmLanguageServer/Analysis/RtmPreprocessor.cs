@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace RtmLanguageServer.Analysis;
@@ -18,7 +18,8 @@ public static class RtmPreprocessor
         string source,
         RtmWorkspaceIndex workspace)
     {
-        var currentSourceName = GetSourceNameFromUri(uri);
+        uri = RtmUri.Normalize(uri);
+        var currentSourceName = RtmUri.SourceNameFromUri(uri);
         var originalLines = SplitLines(source);
 
         return BuildExpandedSource(
@@ -195,14 +196,6 @@ public static class RtmPreprocessor
         return trimmed.StartsWith("$NAME", StringComparison.OrdinalIgnoreCase)
                || trimmed.StartsWith("$ENTRY", StringComparison.OrdinalIgnoreCase)
                || trimmed.StartsWith("$END", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string GetSourceNameFromUri(string uri)
-    {
-        if (Uri.TryCreate(uri, UriKind.Absolute, out var parsed) && parsed.IsFile)
-            return Path.GetFileNameWithoutExtension(parsed.LocalPath).ToUpperInvariant();
-
-        return Path.GetFileNameWithoutExtension(uri).ToUpperInvariant();
     }
 
     private static string[] SplitLines(string source)

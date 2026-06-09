@@ -48,12 +48,12 @@ public static class Extensions
         if (string.IsNullOrWhiteSpace(name))
             return null;
 
-        var sourceName = GetSourceNameFromUri(document.Uri);
+        var sourceName = RtmUri.SourceNameFromUri(document.Uri);
 
         return allDocuments
             .SelectMany(d => d.Index.FindDefinitions(name))
             .OrderByDescending(s => string.Equals(s.Location.Uri, document.Uri, StringComparison.OrdinalIgnoreCase))
-            .ThenByDescending(s => string.Equals(GetSourceNameFromUri(s.Location.Uri), sourceName, StringComparison.OrdinalIgnoreCase))
+            .ThenByDescending(s => string.Equals(RtmUri.SourceNameFromUri(s.Location.Uri), sourceName, StringComparison.OrdinalIgnoreCase))
             .ThenBy(s => s.Location.Range.Start.Line)
             .ThenBy(s => s.Location.Range.Start.Character)
             .FirstOrDefault();
@@ -66,11 +66,4 @@ public static class Extensions
     private static int SpanLength(TextRange range) =>
         ((range.End.Line - range.Start.Line) * 100_000) + (range.End.Character - range.Start.Character);
 
-    private static string GetSourceNameFromUri(string uri)
-    {
-        if (Uri.TryCreate(uri, UriKind.Absolute, out var parsed) && parsed.IsFile)
-            return Path.GetFileNameWithoutExtension(parsed.LocalPath).ToUpperInvariant();
-
-        return Path.GetFileNameWithoutExtension(uri).ToUpperInvariant();
-    }
 }
