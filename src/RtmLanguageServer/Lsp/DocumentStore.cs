@@ -50,10 +50,12 @@ public sealed class DocumentStore
             _texts[uri] = text;
 
             EnsureFallbackWorkspaceLoaded(uri);
+            Report($"RTM: processing {DisplayFileName(uri)}: loading symbols", showToUser: false);
             RebuildWorkspaceAndDocumentsUnsafe();
 
             var document = ParseAndStoreUnsafe(uri, text);
             SemanticResolver.ResolveAll(_documents.Values);
+            Report($"RTM: ready ({_documents.Count} files indexed)", showToUser: true);
             return document;
         }
     }
@@ -127,7 +129,7 @@ public sealed class DocumentStore
         var count = 0;
         foreach (var path in EnumerateRtmFiles(rootPath))
         {
-            Report($"RTM: reading source {Path.GetFileName(path)}", showToUser: false);
+            Report($"RTM: processing file {Path.GetFileName(path)}: reading source", showToUser: false);
             TryLoadFile(path, overwrite: false);
             count++;
         }
@@ -243,7 +245,7 @@ public sealed class DocumentStore
         {
             try
             {
-                Report($"RTM: loading symbols {DisplayFileName(uri)}", showToUser: false);
+                Report($"RTM: processing file {DisplayFileName(uri)}: loading symbols", showToUser: false);
                 rebuilt[uri] = RtmDocument.Parse(uri, text, _workspace);
             }
             catch (Exception ex)

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 
@@ -15,8 +16,8 @@ public sealed class JsonRpcServer
     private readonly DocumentStore _documents = new();
     private readonly SemaphoreSlim _sendGate = new(1, 1);
     private readonly RtmLanguageService _service;
-    private int _nextRequestId = 1;
-    private string? _activeProgressToken;
+    private DateTime _lastVisibleStatusUtc = DateTime.MinValue;
+    private string? _lastVisibleStatusMessage;
 
     public JsonRpcServer(Stream input, Stream output)
     {
@@ -45,8 +46,6 @@ public sealed class JsonRpcServer
         var id = hasId ? idEl.Clone() : default;
         var paramsEl = root.TryGetProperty("params", out var p) ? p : default;
 
-        // Response to a server-initiated request such as window/workDoneProgress/create.
-        // The current server does not need to block waiting for these responses.
         if (method is null)
             return;
 
@@ -76,19 +75,16 @@ public sealed class JsonRpcServer
                             serverInfo = new { name = "rtm-language-server", version = "0.1.0" }
                         }, cancellationToken).ConfigureAwait(false);
 
-                        // Send visible progress only after the initialize response. Some
-                        // clients ignore UI notifications sent before initialization has
-                        // completed, which made workspace preload look silent.
-                        await BeginProgressAsync("RTM: Loading workspace", cancellationToken).ConfigureAwait(false);
-                        try
-                        {
-                            foreach (var workspaceRoot in roots)
-                                _documents.LoadWorkspace(workspaceRoot);
-                        }
-                        finally
-                        {
-                            await EndProgressAsync("RTM: workspace indexing complete", cancellationToken).ConfigureAwait(false);
-                        }
+                        // Keep preload simple and non-blocking from the LSP protocol point of view.
+                        // Status bar feedback is sent through the custom rtm/status notification;
+                        // do not use window/workDoneProgress/create here because server-initiated
+                        // requests during initialize can make some VS Code clients restart the server.
+                        SendStatusBarNotification("RTM: Loading workspace", busy: true);
+
+                        foreach (var workspaceRoot in roots)
+                            _documents.LoadWorkspace(workspaceRoot);
+
+                        SendStatusBarNotification("RTM: Ready", busy: false);
 
                         break;
                     }
@@ -160,29 +156,12 @@ public sealed class JsonRpcServer
                 .GetAwaiter()
                 .GetResult();
 
-            var token = _activeProgressToken;
-            if (!string.IsNullOrWhiteSpace(token))
+            // Custom notification for the VS Code extension. This is deliberately
+            // separate from LSP workDoneProgress so status feedback cannot destabilize
+            // the language-server lifecycle.
+            if (showToUser || ShouldPublishStatusBarUpdate(message))
             {
-                SendNotificationAsync("$/progress", new
-                {
-                    token,
-                    value = new
-                    {
-                        kind = "report",
-                        message
-                    }
-                }, CancellationToken.None)
-                    .GetAwaiter()
-                    .GetResult();
-            }
-
-            // Keep popups for milestones/errors only. Per-file messages are shown in
-            // the progress UI/output so the editor is not flooded with notifications.
-            if (showToUser)
-            {
-                SendNotificationAsync("window/showMessage", new { type = 3, message }, CancellationToken.None)
-                    .GetAwaiter()
-                    .GetResult();
+                SendStatusBarNotification(message, IsBusyStatus(message));
             }
         }
         catch
@@ -191,44 +170,54 @@ public sealed class JsonRpcServer
         }
     }
 
-    private async Task BeginProgressAsync(string title, CancellationToken cancellationToken)
+
+    private bool ShouldPublishStatusBarUpdate(string message)
     {
-        var token = $"rtm-workspace-{Guid.NewGuid():N}";
-        _activeProgressToken = token;
+        if (string.IsNullOrWhiteSpace(message))
+            return false;
 
-        await SendRequestAsync("window/workDoneProgress/create", new { token }, cancellationToken)
-            .ConfigureAwait(false);
+        // Always publish milestones and failures.
+        if (message.Contains("workspace symbols ready", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("could not index", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("loading workspace", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("workspace indexing complete", StringComparison.OrdinalIgnoreCase))
+            return true;
 
-        await SendNotificationAsync("$/progress", new
-        {
-            token,
-            value = new
-            {
-                kind = "begin",
-                title,
-                message = "Scanning RTM files",
-                percentage = 0
-            }
-        }, cancellationToken).ConfigureAwait(false);
+        // Publish per-file progress, but throttle fast scans so the extension is not
+        // asked to repaint the status bar for hundreds of files in a tight loop.
+        if (!message.Contains("processing file", StringComparison.OrdinalIgnoreCase)
+            && !message.Contains("processing ", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var now = DateTime.UtcNow;
+        if (string.Equals(_lastVisibleStatusMessage, message, StringComparison.Ordinal)
+            || now - _lastVisibleStatusUtc < TimeSpan.FromMilliseconds(250))
+            return false;
+
+        _lastVisibleStatusUtc = now;
+        _lastVisibleStatusMessage = message;
+        return true;
     }
 
-    private async Task EndProgressAsync(string message, CancellationToken cancellationToken)
+    private void SendStatusBarNotification(string message, bool busy)
     {
-        var token = _activeProgressToken;
-        if (string.IsNullOrWhiteSpace(token))
-            return;
-
-        await SendNotificationAsync("$/progress", new
+        SendNotificationAsync("rtm/status", new
         {
-            token,
-            value = new
-            {
-                kind = "end",
-                message
-            }
-        }, cancellationToken).ConfigureAwait(false);
+            message,
+            busy
+        }, CancellationToken.None)
+            .GetAwaiter()
+            .GetResult();
+    }
 
-        _activeProgressToken = null;
+    private static bool IsBusyStatus(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+            return false;
+
+        return !(message.Contains("ready", StringComparison.OrdinalIgnoreCase)
+                 || message.Contains("complete", StringComparison.OrdinalIgnoreCase)
+                 || message.Contains("could not index", StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task<string?> ReadMessageAsync(CancellationToken cancellationToken)
@@ -277,12 +266,6 @@ public sealed class JsonRpcServer
 
     private Task SendErrorAsync(JsonElement id, int code, string message, CancellationToken cancellationToken) =>
         SendAsync(new { jsonrpc = "2.0", id, error = new { code, message } }, cancellationToken);
-
-    private Task SendRequestAsync(string method, object? @params, CancellationToken cancellationToken)
-    {
-        var id = Interlocked.Increment(ref _nextRequestId);
-        return SendAsync(new { jsonrpc = "2.0", id, method, @params }, cancellationToken);
-    }
 
     private Task SendNotificationAsync(string method, object? @params, CancellationToken cancellationToken) =>
         SendAsync(new { jsonrpc = "2.0", method, @params }, cancellationToken);
