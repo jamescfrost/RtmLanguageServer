@@ -49,7 +49,6 @@ public sealed class RtmDocument
 
         lexer.RemoveErrorListeners();
         lexer.AddErrorListener(new CollectingLexerErrorListener(diagnostics));
-        lexer.AddErrorListener(new ThrowingLexerErrorListener());
 
         var tokens = new CommonTokenStream(lexer);
 
@@ -60,7 +59,6 @@ public sealed class RtmDocument
 
         parser.RemoveErrorListeners();
         parser.AddErrorListener(new CollectingParserErrorListener(diagnostics));
-        parser.AddErrorListener(new ThrowingParserErrorListener());
 
         var tree = parser.start();
         tokens.Fill();
@@ -76,6 +74,22 @@ public sealed class RtmDocument
             index.AddDefinition(new NameIncludeSymbol(
                 section.Name,
                 new Location(section.Uri, range)));
+        }
+
+
+        foreach (var include in preprocessed.IncludeDirectives)
+        {
+            var range = new TextRange(
+                new TextPosition(include.Line - 1, include.Column),
+                new TextPosition(include.Line - 1, include.Column + include.Length));
+
+            index.AddReference(new IncludeReference
+            {
+                Name = include.IncludeName,
+                IncludeName = include.IncludeName,
+                SourceName = include.SourceName,
+                Location = new Location(include.Uri, range)
+            });
         }
 
         ParseTreeWalker.Default.Walk(

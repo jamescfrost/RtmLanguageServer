@@ -46,18 +46,31 @@ public sealed class JsonRpcServer
             switch (method)
             {
                 case "initialize":
-                    await SendResultAsync(id, new
                     {
-                        capabilities = new
+                        var args = paramsEl.ValueKind == JsonValueKind.Undefined
+                            ? new InitializeParams()
+                            : paramsEl.Deserialize<InitializeParams>(JsonOptions) ?? new InitializeParams();
+
+                        var roots = args.WorkspaceFolders is { Count: > 0 }
+                            ? args.WorkspaceFolders.Select(f => f.Uri)
+                            : new[] { args.RootUri ?? args.RootPath };
+
+                        foreach (var workspaceRoot in roots)
+                            _documents.LoadWorkspace(workspaceRoot);
+
+                        await SendResultAsync(id, new
                         {
-                            textDocumentSync = 1,
-                            definitionProvider = true,
-                            referencesProvider = true,
-                            hoverProvider = true
-                        },
-                        serverInfo = new { name = "rtm-language-server", version = "0.1.0" }
-                    }, cancellationToken).ConfigureAwait(false);
-                    break;
+                            capabilities = new
+                            {
+                                textDocumentSync = 1,
+                                definitionProvider = true,
+                                referencesProvider = true,
+                                hoverProvider = true
+                            },
+                            serverInfo = new { name = "rtm-language-server", version = "0.1.0" }
+                        }, cancellationToken).ConfigureAwait(false);
+                        break;
+                    }
 
                 case "shutdown":
                     if (hasId) await SendResultAsync(id, null, cancellationToken).ConfigureAwait(false);

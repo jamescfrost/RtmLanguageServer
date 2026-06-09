@@ -5,6 +5,10 @@ public sealed class RtmWorkspaceIndex
     private readonly Dictionary<string, RtmSourceFile> _sources =
         new(StringComparer.OrdinalIgnoreCase);
 
+    public void Clear() => _sources.Clear();
+
+    public IEnumerable<RtmSourceFile> Sources => _sources.Values;
+
     public void AddSource(string uri, string text)
     {
         var sourceName = GetSourceNameFromUri(uri);

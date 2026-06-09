@@ -3,6 +3,19 @@ using System.Text.Json.Serialization;
 
 namespace RtmLanguageServer.Lsp;
 
+public sealed class InitializeParams
+{
+    [JsonPropertyName("rootUri")] public string? RootUri { get; set; }
+    [JsonPropertyName("rootPath")] public string? RootPath { get; set; }
+    [JsonPropertyName("workspaceFolders")] public List<WorkspaceFolder>? WorkspaceFolders { get; set; }
+}
+
+public sealed class WorkspaceFolder
+{
+    [JsonPropertyName("uri")] public string Uri { get; set; } = string.Empty;
+    [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
+}
+
 public sealed class TextDocumentItem
 {
     [JsonPropertyName("uri")] public string Uri { get; set; } = string.Empty;

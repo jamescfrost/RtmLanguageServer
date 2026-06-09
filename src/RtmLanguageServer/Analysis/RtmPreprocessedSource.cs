@@ -7,11 +7,13 @@ public sealed class RtmPreprocessedSource
     public RtmPreprocessedSource(
         string text,
         IReadOnlyDictionary<string, RtmNameSection> nameSections,
-        IReadOnlyList<RtmLineMapping> lineMappings)
+        IReadOnlyList<RtmLineMapping> lineMappings,
+        IReadOnlyList<RtmIncludeDirective>? includeDirectives = null)
     {
         Text = text;
         NameSections = nameSections;
         LineMappings = lineMappings;
+        IncludeDirectives = includeDirectives ?? [];
     }
 
     public string Text { get; }
@@ -19,6 +21,8 @@ public sealed class RtmPreprocessedSource
     public IReadOnlyDictionary<string, RtmNameSection> NameSections { get; }
 
     public IReadOnlyList<RtmLineMapping> LineMappings { get; }
+
+    public IReadOnlyList<RtmIncludeDirective> IncludeDirectives { get; }
 
     public TextRange MapRange(TextRange generatedRange)
     {

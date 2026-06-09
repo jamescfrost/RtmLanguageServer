@@ -100,6 +100,7 @@ public static class RtmPreprocessor
         var sections = ExtractNameSections(currentUri, originalLines);
         var output = new StringBuilder();
         var mappings = new List<RtmLineMapping>();
+        var includeDirectives = new List<RtmIncludeDirective>();
 
         var generatedLine = 1;
         var insideNameSection = false;
@@ -129,6 +130,13 @@ public static class RtmPreprocessor
             {
                 var sourceName = include.Groups["source"].Value.Trim();
                 var includeName = include.Groups["name"].Value.Trim();
+                includeDirectives.Add(new RtmIncludeDirective(
+                    sourceName,
+                    includeName,
+                    currentUri,
+                    originalLine,
+                    include.Groups["name"].Index,
+                    include.Groups["name"].Length));
 
                 var section = workspace.FindSection(
                     currentSourceName,
@@ -157,7 +165,8 @@ public static class RtmPreprocessor
         return new RtmPreprocessedSource(
             output.ToString(),
             sections,
-            mappings);
+            mappings,
+            includeDirectives);
 
         void AppendGeneratedLine(
             string text,
