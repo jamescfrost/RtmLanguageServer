@@ -47,14 +47,14 @@ The server communicates over stdin/stdout using the Language Server Protocol, as
 
 ## Grammar
 
-The uploaded grammar files are included here:
+The grammar files are located in the Core library:
 
 ```text
-src/RtmLanguageServer/Grammar/RtmLexer.g4
-src/RtmLanguageServer/Grammar/RtmParser.g4
+src/RtmLanguageServer.Core/Grammar/RtmLexer.g4
+src/RtmLanguageServer.Core/Grammar/RtmParser.g4
 ```
 
-`Antlr4BuildTasks` generates the C# lexer/parser during build.
+`Antlr4BuildTasks` generates the C# lexer/parser during build into the `RtmLanguageServer.Core.Generated` namespace.
 
 ## Current symbol model
 
@@ -135,19 +135,49 @@ This project uses `.editorconfig` to enforce consistent code style. Visual Studi
 
 ## Architecture
 
-### Components
+The solution is organized into three logical layers:
 
-- **Grammar Layer**: ANTLR4 lexer and parser (`RtmLexer.g4`, `RtmParser.g4`)
-- **Analysis Layer**: Symbol indexing, scope resolution, semantic analysis
-- **Preprocessor**: Handles `$NAME` sections and `$INCLUDE` directives
-- **LSP Layer**: JSON-RPC server implementation with LSP protocol handlers
-- **Document Store**: Workspace-aware document and symbol management
+### Projects
+
+1. **RtmLanguageServer.Core** - Reusable RTM language analysis library
+   - Grammar definitions (ANTLR4 lexer and parser)
+   - Symbol model (overlays, procedures, fields, references, etc.)
+   - Parsing and semantic analysis
+   - Preprocessor (`$NAME` sections and `$INCLUDE` directives)
+   - No dependencies on LSP or JSON-RPC
+
+2. **RtmLanguageServer.Protocol** - LSP protocol implementation
+   - LSP models and DTOs (initialize, textDocument, hover, diagnostics, etc.)
+   - JSON-RPC message transport (stdin/stdout)
+   - Document store and workspace management
+   - Language service (definition, references, hover implementation)
+   - Depends on: Core
+
+3. **RtmLanguageServer** - Executable host
+   - Entry point (`Program.cs`)
+   - Logging configuration
+   - Server bootstrapping
+   - Depends on: Protocol
+
+4. **RtmLanguageServer.Tests** - Unit tests
+   - Parse tests
+   - Semantic resolution tests
+   - Diagnostic tests
+   - Depends on: Core
+
+### Benefits
+
+- **Separation of concerns**: Grammar/analysis logic is independent of LSP protocol
+- **Reusability**: Core library can be used in CLI tools, formatters, or other analyzers
+- **Testability**: Each layer can be tested independently
+- **Maintainability**: Clear boundaries and namespaces matching folder structure
 
 ### LSP Features Implemented
 
 - ✅ `textDocument/definition` - Go to definition
 - ✅ `textDocument/references` - Find all references
 - ✅ `textDocument/hover` - Symbol information on hover
+- ✅ `textDocument/publishDiagnostics` - Syntax error reporting
 - ✅ Full-document sync (`didOpen`, `didChange`)
 - ✅ Workspace indexing for multi-file projects
 - ✅ Cross-file symbol resolution
@@ -156,7 +186,6 @@ This project uses `.editorconfig` to enforce consistent code style. Visual Studi
 ### Planned Features
 
 See the [Issues](../../issues) page for planned enhancements including:
-- Diagnostics publishing
 - Code completion
 - Semantic tokens (syntax highlighting)
 - Document symbols (outline view)

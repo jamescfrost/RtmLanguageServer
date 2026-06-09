@@ -1,7 +1,7 @@
 using RtmLanguageServer.Core.Common;
 using System.Text.Json.Serialization;
 
-namespace RtmLanguageServer.Lsp;
+namespace RtmLanguageServer.Protocol;
 
 public sealed class InitializeParams
 {

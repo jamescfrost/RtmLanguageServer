@@ -5,7 +5,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
-    <RootNamespace>RtmLanguageServer</RootNamespace>
+    <RootNamespace>RtmLanguageServer.App</RootNamespace>
+    <AssemblyName>rtm-language-server</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,6 +15,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\RtmLanguageServer.Core\RtmLanguageServer.Core.csproj" />
+    <ProjectReference Include="..\RtmLanguageServer.Protocol\RtmLanguageServer.Protocol.csproj" />
   </ItemGroup>
 </Project>

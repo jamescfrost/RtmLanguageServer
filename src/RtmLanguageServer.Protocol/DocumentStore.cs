@@ -4,7 +4,7 @@ using RtmLanguageServer.Core.Analysis;
 using RtmLanguageServer.Core.Common;
 using RtmLanguageServer.Core.Parsing;
 
-namespace RtmLanguageServer.Lsp;
+namespace RtmLanguageServer.Protocol;
 
 public sealed class DocumentStore
 {
@@ -53,9 +53,6 @@ public sealed class DocumentStore
 
         lock (_gate)
         {
-            // The opened buffer is authoritative. Always overwrite any preloaded copy
-            // read from disk, then force this document to be parsed under the exact URI
-            // VS Code will use for hover/definition requests.
             _texts[uri] = text;
 
             EnsureFallbackWorkspaceLoaded(uri);
@@ -81,9 +78,6 @@ public sealed class DocumentStore
             if (_documents.TryGetValue(uri, out document))
                 return true;
 
-            // Some LSP clients can ask for hover/definition immediately after a file is
-            // revealed, before didOpen is delivered. Load and parse that file on demand
-            // so the first clicked file works the same as later opened files.
             TryLoadUriFromDisk(uri, overwrite: false);
             RebuildWorkspaceAndDocumentsUnsafe();
             return _documents.TryGetValue(uri, out document);
@@ -100,9 +94,6 @@ public sealed class DocumentStore
 
         containingFolder = Path.GetFullPath(containingFolder);
 
-        // If VS Code supplied workspace folders during initialize, never walk above or
-        // around those roots. Loading parent folders caused unrelated directories to be
-        // scanned and made indexing noisy/slow.
         if (_explicitWorkspaceRoots.Count > 0)
         {
             foreach (var workspaceRoot in _explicitWorkspaceRoots)
@@ -114,8 +105,6 @@ public sealed class DocumentStore
             return;
         }
 
-        // Fallback for clients that did not send workspace folders: only scan the folder
-        // that contains the opened document. Do not climb to parents.
         LoadWorkspaceFiles(containingFolder);
     }
 
@@ -248,8 +237,6 @@ public sealed class DocumentStore
         foreach (var (uri, text) in _texts)
             _workspace.AddSource(uri, text);
 
-        // Rebuild into a fresh dictionary so partially stale preloaded documents do not
-        // survive under a mismatched URI and confuse first-file hover/definition.
         var rebuilt = new Dictionary<string, RtmDocument>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var (uri, text) in _texts)
@@ -282,7 +269,6 @@ public sealed class DocumentStore
         _documents[uri] = document;
         return document;
     }
-
 
     private void Report(string message, bool showToUser) => Status?.Invoke(message, showToUser);
 

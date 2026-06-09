@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using RtmLanguageServer.Lsp;
+using RtmLanguageServer.Protocol;
 
 // Configure logging to stderr (LSP protocol uses stdout for communication)
 using var loggerFactory = LoggerFactory.Create(builder =>

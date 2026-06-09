@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 using RtmLanguageServer.Core.Common;
 using RtmLanguageServer.Core.Parsing;
 
-namespace RtmLanguageServer.Lsp;
+namespace RtmLanguageServer.Protocol;
 
 public sealed class JsonRpcServer
 {
@@ -81,10 +81,6 @@ public sealed class JsonRpcServer
                             serverInfo = new { name = "rtm-language-server", version = "0.1.0" }
                         }, cancellationToken).ConfigureAwait(false);
 
-                        // Keep preload simple and non-blocking from the LSP protocol point of view.
-                        // Status bar feedback is sent through the custom rtm/status notification;
-                        // do not use window/workDoneProgress/create here because server-initiated
-                        // requests during initialize can make some VS Code clients restart the server.
                         SendStatusBarNotification("RTM: Loading workspace", busy: true);
 
                         foreach (var workspaceRoot in roots)
@@ -157,19 +153,14 @@ public sealed class JsonRpcServer
         }
     }
 
-
     private void PublishStatus(string message, bool showToUser)
     {
         try
         {
-            // window/logMessage appears in VS Code's language-server output.
             SendNotificationAsync("window/logMessage", new { type = 3, message }, CancellationToken.None)
                 .GetAwaiter()
                 .GetResult();
 
-            // Custom notification for the VS Code extension. This is deliberately
-            // separate from LSP workDoneProgress so status feedback cannot destabilize
-            // the language-server lifecycle.
             if (showToUser || ShouldPublishStatusBarUpdate(message))
             {
                 SendStatusBarNotification(message, IsBusyStatus(message));
@@ -177,26 +168,21 @@ public sealed class JsonRpcServer
         }
         catch (Exception ex)
         {
-            // Status feedback must never break LSP request handling.
             _logger.LogWarning(ex, "Failed to publish status message");
         }
     }
-
 
     private bool ShouldPublishStatusBarUpdate(string message)
     {
         if (string.IsNullOrWhiteSpace(message))
             return false;
 
-        // Always publish milestones and failures.
         if (message.Contains("workspace symbols ready", StringComparison.OrdinalIgnoreCase)
             || message.Contains("could not index", StringComparison.OrdinalIgnoreCase)
             || message.Contains("loading workspace", StringComparison.OrdinalIgnoreCase)
             || message.Contains("workspace indexing complete", StringComparison.OrdinalIgnoreCase))
             return true;
 
-        // Publish per-file progress, but throttle fast scans so the extension is not
-        // asked to repaint the status bar for hundreds of files in a tight loop.
         if (!message.Contains("processing file", StringComparison.OrdinalIgnoreCase)
             && !message.Contains("processing ", StringComparison.OrdinalIgnoreCase))
             return false;
@@ -275,34 +261,9 @@ public sealed class JsonRpcServer
 
     private static Diagnostic? ParseDiagnosticMessage(string message)
     {
-        // Expected formats:
-        // "Lexer 10:5: token recognition error at: '$'"
-        // "Parser 15:10: mismatched input 'END' expecting ENDPROC"
-
         var parts = message.Split(':', 3);
         if (parts.Length < 3)
         {
-            // Fallback: create diagnostic at line 0
-            return new Diagnostic
-            {
-                Range = new TextRange(new TextPosition(0, 0), new TextPosition(0, 0)),
-                Severity = 1, // Error
-                Source = "rtm",
-                Message = message
-            };
-        }
-
-        var source = parts[0].Trim(); // "Lexer" or "Parser"
-        var lineCol = parts[1].Trim();
-        var errorMessage = parts[2].Trim();
-
-        // Parse line:column
-        var lineColParts = lineCol.Split(':');
-        if (lineColParts.Length != 2 
-            || !int.TryParse(lineColParts[0], out var line) 
-            || !int.TryParse(lineColParts[1], out var col))
-        {
-            // Fallback
             return new Diagnostic
             {
                 Range = new TextRange(new TextPosition(0, 0), new TextPosition(0, 0)),
@@ -312,13 +273,30 @@ public sealed class JsonRpcServer
             };
         }
 
-        // LSP uses 0-based line numbers, ANTLR uses 1-based
+        var source = parts[0].Trim();
+        var lineCol = parts[1].Trim();
+        var errorMessage = parts[2].Trim();
+
+        var lineColParts = lineCol.Split(':');
+        if (lineColParts.Length != 2 
+            || !int.TryParse(lineColParts[0], out var line) 
+            || !int.TryParse(lineColParts[1], out var col))
+        {
+            return new Diagnostic
+            {
+                Range = new TextRange(new TextPosition(0, 0), new TextPosition(0, 0)),
+                Severity = 1,
+                Source = "rtm",
+                Message = message
+            };
+        }
+
         var position = new TextPosition(line - 1, col);
 
         return new Diagnostic
         {
             Range = new TextRange(position, new TextPosition(line - 1, col + 1)),
-            Severity = 1, // Error
+            Severity = 1,
             Source = source.ToLowerInvariant(),
             Message = errorMessage
         };

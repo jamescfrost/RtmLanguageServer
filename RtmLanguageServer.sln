@@ -1,9 +1,8 @@
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
 VisualStudioVersion = 18.6.11822.322
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RtmLanguageServer", "src\RtmLanguageServer\RtmLanguageServer.csproj", "{75024C7D-6535-4D58-9A17-1BAF8F65124C}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{8EC462FD-D22E-90A8-E5CE-7E832BA40C5D}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
@@ -16,16 +15,16 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RtmLanguageServer.Tests", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RtmLanguageServer.Core", "src\RtmLanguageServer.Core\RtmLanguageServer.Core.csproj", "{B2E6A441-2B05-88D2-2413-DEB7998D58C5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RtmLanguageServer.Protocol", "src\RtmLanguageServer.Protocol\RtmLanguageServer.Protocol.csproj", "{E909F0BC-A05C-A15F-CDA8-F9FBEB025E36}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RtmLanguageServer.App", "src\RtmLanguageServer.App\RtmLanguageServer.App.csproj", "{90076CFF-6304-EE28-F590-C7FDB68863A7}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{75024C7D-6535-4D58-9A17-1BAF8F65124C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{75024C7D-6535-4D58-9A17-1BAF8F65124C}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{75024C7D-6535-4D58-9A17-1BAF8F65124C}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{75024C7D-6535-4D58-9A17-1BAF8F65124C}.Release|Any CPU.Build.0 = Release|Any CPU
 		{6348CC1A-E8EC-510F-1198-D88D8D981A27}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{6348CC1A-E8EC-510F-1198-D88D8D981A27}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6348CC1A-E8EC-510F-1198-D88D8D981A27}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -34,6 +33,14 @@ Global
 		{B2E6A441-2B05-88D2-2413-DEB7998D58C5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B2E6A441-2B05-88D2-2413-DEB7998D58C5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B2E6A441-2B05-88D2-2413-DEB7998D58C5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E909F0BC-A05C-A15F-CDA8-F9FBEB025E36}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E909F0BC-A05C-A15F-CDA8-F9FBEB025E36}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E909F0BC-A05C-A15F-CDA8-F9FBEB025E36}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E909F0BC-A05C-A15F-CDA8-F9FBEB025E36}.Release|Any CPU.Build.0 = Release|Any CPU
+		{90076CFF-6304-EE28-F590-C7FDB68863A7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{90076CFF-6304-EE28-F590-C7FDB68863A7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{90076CFF-6304-EE28-F590-C7FDB68863A7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{90076CFF-6304-EE28-F590-C7FDB68863A7}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

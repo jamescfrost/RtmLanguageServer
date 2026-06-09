@@ -2,7 +2,7 @@ using RtmLanguageServer.Core.Common;
 using RtmLanguageServer.Core.Parsing;
 using RtmLanguageServer.Core.Symbols;
 
-namespace RtmLanguageServer.Lsp;
+namespace RtmLanguageServer.Protocol;
 
 public sealed class RtmLanguageService
 {
