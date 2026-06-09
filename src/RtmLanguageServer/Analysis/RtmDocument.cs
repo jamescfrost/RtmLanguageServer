@@ -32,11 +32,17 @@ public sealed class RtmDocument
     public SymbolIndex Index { get; }
     public IReadOnlyList<string> Diagnostics { get; }
 
-    public static RtmDocument Parse(string uri, string text)
+    public static RtmDocument Parse(string uri, string text, RtmWorkspaceIndex? workspace = null)
     {
         var diagnostics = new List<string>();
 
-        var preprocessed = RtmPreprocessor.Process(text);
+        workspace ??= new RtmWorkspaceIndex();
+        workspace.AddSource(uri, text);
+
+        var preprocessed = RtmPreprocessor.Process(
+            uri,
+            text,
+            workspace);
 
         var input = new AntlrInputStream(preprocessed.Text);
         var lexer = new RtmLexer(input);
@@ -69,7 +75,7 @@ public sealed class RtmDocument
 
             index.AddDefinition(new NameIncludeSymbol(
                 section.Name,
-                new Location(uri, range)));
+                new Location(section.Uri, range)));
         }
 
         ParseTreeWalker.Default.Walk(

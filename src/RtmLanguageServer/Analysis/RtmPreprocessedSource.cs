@@ -40,4 +40,21 @@ public sealed class RtmPreprocessedSource
             mapping.OriginalLine - 1,
             generatedPosition.Character);
     }
+
+    public Location MapLocation(string fallbackUri, TextRange generatedRange)
+    {
+        var startLine = generatedRange.Start.Line + 1;
+
+        var mapping = LineMappings
+            .FirstOrDefault(m => m.GeneratedLine == startLine);
+
+        if (mapping is null)
+            return new Location(fallbackUri, generatedRange);
+
+        var mappedRange = new TextRange(
+            new TextPosition(mapping.OriginalLine - 1, generatedRange.Start.Character),
+            new TextPosition(mapping.OriginalLine - 1, generatedRange.End.Character));
+
+        return new Location(mapping.OriginalUri, mappedRange);
+    }
 }

@@ -6,10 +6,12 @@ namespace RtmLanguageServer.Lsp;
 public sealed class DocumentStore
 {
     private readonly ConcurrentDictionary<string, RtmDocument> _documents = new(StringComparer.OrdinalIgnoreCase);
+    private readonly RtmWorkspaceIndex _workspace = new();
 
     public RtmDocument OpenOrUpdate(string uri, string text)
     {
-        var document = RtmDocument.Parse(uri, text);
+        _workspace.AddSource(uri, text);
+        var document = RtmDocument.Parse(uri, text, _workspace);
         _documents[uri] = document;
         return document;
     }

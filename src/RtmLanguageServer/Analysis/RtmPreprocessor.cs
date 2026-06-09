@@ -13,15 +13,27 @@ public static class RtmPreprocessor
         @"^\s*\$INCLUDE\s+(?<source>\*|[^\s(]+)\((?<name>[^)]+)\)\s*(?:<<.*)?$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    public static RtmPreprocessedSource Process(string source)
+    public static RtmPreprocessedSource Process(
+        string uri,
+        string source,
+        RtmWorkspaceIndex workspace)
     {
+        var currentSourceName = GetSourceNameFromUri(uri);
         var originalLines = SplitLines(source);
-        var sections = ExtractNameSections(originalLines);
 
-        return BuildExpandedSource(originalLines, sections);
+        return BuildExpandedSource(
+            uri,
+            currentSourceName,
+            originalLines,
+            workspace);
     }
 
-    private static Dictionary<string, RtmNameSection> ExtractNameSections(IReadOnlyList<string> lines)
+    public static Dictionary<string, RtmNameSection> ExtractNameSections(string uri, string source)
+    {
+        return ExtractNameSections(uri, SplitLines(source));
+    }
+
+    public static Dictionary<string, RtmNameSection> ExtractNameSections(string uri, IReadOnlyList<string> lines)
     {
         var result = new Dictionary<string, RtmNameSection>(StringComparer.OrdinalIgnoreCase);
 
@@ -72,6 +84,7 @@ public static class RtmPreprocessor
 
             result[currentName] = new RtmNameSection(
                 currentName,
+                uri,
                 currentHeaderLine,
                 currentHeaderColumn,
                 currentLines.ToArray());
@@ -79,9 +92,12 @@ public static class RtmPreprocessor
     }
 
     private static RtmPreprocessedSource BuildExpandedSource(
+        string currentUri, 
+        string currentSourceName, 
         IReadOnlyList<string> originalLines,
-        IReadOnlyDictionary<string, RtmNameSection> sections)
+        RtmWorkspaceIndex workspace)
     {
+        var sections = ExtractNameSections(currentUri, originalLines);
         var output = new StringBuilder();
         var mappings = new List<RtmLineMapping>();
 
@@ -114,13 +130,20 @@ public static class RtmPreprocessor
                 var sourceName = include.Groups["source"].Value.Trim();
                 var includeName = include.Groups["name"].Value.Trim();
 
-                if (sourceName == "*" && sections.TryGetValue(includeName, out var section))
+                var section = workspace.FindSection(
+                    currentSourceName,
+                    sourceName,
+                    includeName);
+
+                if (section is not null)
                 {
                     foreach (var sectionLine in section.Lines)
                     {
                         AppendGeneratedLine(
                             sectionLine.Text,
+                            section.Uri,
                             sectionLine.OriginalLine,
+                            sourceName == "*" ? currentSourceName : sourceName,
                             section.Name);
                     }
 
@@ -128,7 +151,7 @@ public static class RtmPreprocessor
                 }
             }
 
-            AppendGeneratedLine(line, originalLine, null);
+            AppendGeneratedLine(line, currentUri, originalLine, currentSourceName, null);
         }
 
         return new RtmPreprocessedSource(
@@ -136,13 +159,20 @@ public static class RtmPreprocessor
             sections,
             mappings);
 
-        void AppendGeneratedLine(string text, int originalLine, string? sourceSectionName)
+        void AppendGeneratedLine(
+            string text,
+            string originalUri,
+            int originalLine,
+            string? sourceName,
+            string? sourceSectionName)
         {
             output.AppendLine(text);
 
             mappings.Add(new RtmLineMapping(
                 GeneratedLine: generatedLine,
+                OriginalUri: originalUri,
                 OriginalLine: originalLine,
+                SourceName: sourceName,
                 SourceSectionName: sourceSectionName));
 
             generatedLine++;
@@ -156,6 +186,14 @@ public static class RtmPreprocessor
         return trimmed.StartsWith("$NAME", StringComparison.OrdinalIgnoreCase)
                || trimmed.StartsWith("$ENTRY", StringComparison.OrdinalIgnoreCase)
                || trimmed.StartsWith("$END", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetSourceNameFromUri(string uri)
+    {
+        if (Uri.TryCreate(uri, UriKind.Absolute, out var parsed) && parsed.IsFile)
+            return Path.GetFileNameWithoutExtension(parsed.LocalPath).ToUpperInvariant();
+
+        return Path.GetFileNameWithoutExtension(uri).ToUpperInvariant();
     }
 
     private static string[] SplitLines(string source)
