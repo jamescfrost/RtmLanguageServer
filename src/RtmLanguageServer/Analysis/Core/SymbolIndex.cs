@@ -93,7 +93,12 @@ public sealed class SymbolIndex
 
         return symbol switch
         {
-            OverlaySymbol => reference is OverlayReference,
+            // Overlay calls can appear either as explicit `OVERLAY NAME(...)`
+            // references or as normal call syntax `NAME(...)` in overlay bodies.
+            // The latter is parsed as a ProcedureReference, but if the selected
+            // symbol is an OverlaySymbol we still want find-all-references to
+            // include those call sites across the workspace.
+            OverlaySymbol => reference is OverlayReference or ProcedureReference,
             ProcedureSymbol => reference is ProcedureReference,
             FieldSymbol => reference is FieldReference,
             NameIncludeSymbol => reference is IncludeReference,
