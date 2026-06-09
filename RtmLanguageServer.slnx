@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path=".gitattributes" />
+    <File Path=".gitignore" />
+    <File Path="README.md" />
+  </Folder>
+  <Project Path="src\RtmLanguageServer.Core\RtmLanguageServer.Core.csproj" />
+  <Project Path="src\RtmLanguageServer.Protocol\RtmLanguageServer.Protocol.csproj" />
+  <Project Path="src\RtmLanguageServer.App\RtmLanguageServer.App.csproj" />
+  <Project Path="src\RtmLanguageServer.Tests\RtmLanguageServer.Tests.csproj" />
+</Solution>

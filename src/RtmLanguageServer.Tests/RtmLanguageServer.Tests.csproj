@@ -13,7 +13,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\RtmLanguageServer\RtmLanguageServer.csproj" />
     <ProjectReference Include="..\RtmLanguageServer.Core\RtmLanguageServer.Core.csproj" />
   </ItemGroup>
 </Project>

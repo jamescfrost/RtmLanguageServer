@@ -24,9 +24,17 @@ NuGet packages used:
 
 ## Build
 
+The solution uses the new XML-based `.slnx` format (Visual Studio 2022+):
+
 ```bash
 dotnet restore
 dotnet build
+```
+
+Or with the solution file explicitly:
+
+```bash
+dotnet build RtmLanguageServer.slnx
 ```
 
 ## Run Tests
@@ -40,7 +48,7 @@ dotnet test
 From the repo root:
 
 ```bash
-dotnet run --project src/RtmLanguageServer/RtmLanguageServer.csproj
+dotnet run --project src/RtmLanguageServer.App/RtmLanguageServer.App.csproj
 ```
 
 The server communicates over stdin/stdout using the Language Server Protocol, as standard LSP servers do.
@@ -91,7 +99,7 @@ let client: lc.LanguageClient;
 export function activate(context: vscode.ExtensionContext) {
   const serverOptions: lc.ServerOptions = {
     command: 'dotnet',
-    args: ['run', '--project', '/absolute/path/to/src/RtmLanguageServer/RtmLanguageServer.csproj']
+    args: ['run', '--project', '/absolute/path/to/src/RtmLanguageServer.App/RtmLanguageServer.App.csproj']
   };
 
   const clientOptions: lc.LanguageClientOptions = {
@@ -153,7 +161,7 @@ The solution is organized into three logical layers:
    - Language service (definition, references, hover implementation)
    - Depends on: Core
 
-3. **RtmLanguageServer** - Executable host
+3. **RtmLanguageServer.App** - Executable host
    - Entry point (`Program.cs`)
    - Logging configuration
    - Server bootstrapping
@@ -196,5 +204,5 @@ See the [Issues](../../issues) page for planned enhancements including:
 For development, you can use the following `dotnet run` command with arguments:
 
 ```bash
-dotnet run --project src/RtmLanguageServer/RtmLanguageServer.csproj
+dotnet run --project src/RtmLanguageServer.App/RtmLanguageServer.App.csproj
 ```
