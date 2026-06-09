@@ -13,12 +13,16 @@ public sealed class JsonRpcServer
     private readonly Stream _input;
     private readonly Stream _output;
     private readonly DocumentStore _documents = new();
+    private readonly SemaphoreSlim _sendGate = new(1, 1);
     private readonly RtmLanguageService _service;
+    private int _nextRequestId = 1;
+    private string? _activeProgressToken;
 
     public JsonRpcServer(Stream input, Stream output)
     {
         _input = input;
         _output = output;
+        _documents.Status += PublishStatus;
         _service = new RtmLanguageService(_documents);
     }
 
@@ -41,6 +45,11 @@ public sealed class JsonRpcServer
         var id = hasId ? idEl.Clone() : default;
         var paramsEl = root.TryGetProperty("params", out var p) ? p : default;
 
+        // Response to a server-initiated request such as window/workDoneProgress/create.
+        // The current server does not need to block waiting for these responses.
+        if (method is null)
+            return;
+
         try
         {
             switch (method)
@@ -55,9 +64,6 @@ public sealed class JsonRpcServer
                             ? args.WorkspaceFolders.Select(f => f.Uri)
                             : new[] { args.RootUri ?? args.RootPath };
 
-                        foreach (var workspaceRoot in roots)
-                            _documents.LoadWorkspace(workspaceRoot);
-
                         await SendResultAsync(id, new
                         {
                             capabilities = new
@@ -69,6 +75,21 @@ public sealed class JsonRpcServer
                             },
                             serverInfo = new { name = "rtm-language-server", version = "0.1.0" }
                         }, cancellationToken).ConfigureAwait(false);
+
+                        // Send visible progress only after the initialize response. Some
+                        // clients ignore UI notifications sent before initialization has
+                        // completed, which made workspace preload look silent.
+                        await BeginProgressAsync("RTM: Loading workspace", cancellationToken).ConfigureAwait(false);
+                        try
+                        {
+                            foreach (var workspaceRoot in roots)
+                                _documents.LoadWorkspace(workspaceRoot);
+                        }
+                        finally
+                        {
+                            await EndProgressAsync("RTM: workspace indexing complete", cancellationToken).ConfigureAwait(false);
+                        }
+
                         break;
                     }
 
@@ -129,6 +150,87 @@ public sealed class JsonRpcServer
         }
     }
 
+
+    private void PublishStatus(string message, bool showToUser)
+    {
+        try
+        {
+            // window/logMessage appears in VS Code's language-server output.
+            SendNotificationAsync("window/logMessage", new { type = 3, message }, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult();
+
+            var token = _activeProgressToken;
+            if (!string.IsNullOrWhiteSpace(token))
+            {
+                SendNotificationAsync("$/progress", new
+                {
+                    token,
+                    value = new
+                    {
+                        kind = "report",
+                        message
+                    }
+                }, CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult();
+            }
+
+            // Keep popups for milestones/errors only. Per-file messages are shown in
+            // the progress UI/output so the editor is not flooded with notifications.
+            if (showToUser)
+            {
+                SendNotificationAsync("window/showMessage", new { type = 3, message }, CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult();
+            }
+        }
+        catch
+        {
+            // Status feedback must never break LSP request handling.
+        }
+    }
+
+    private async Task BeginProgressAsync(string title, CancellationToken cancellationToken)
+    {
+        var token = $"rtm-workspace-{Guid.NewGuid():N}";
+        _activeProgressToken = token;
+
+        await SendRequestAsync("window/workDoneProgress/create", new { token }, cancellationToken)
+            .ConfigureAwait(false);
+
+        await SendNotificationAsync("$/progress", new
+        {
+            token,
+            value = new
+            {
+                kind = "begin",
+                title,
+                message = "Scanning RTM files",
+                percentage = 0
+            }
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task EndProgressAsync(string message, CancellationToken cancellationToken)
+    {
+        var token = _activeProgressToken;
+        if (string.IsNullOrWhiteSpace(token))
+            return;
+
+        await SendNotificationAsync("$/progress", new
+        {
+            token,
+            value = new
+            {
+                kind = "end",
+                message
+            }
+        }, cancellationToken).ConfigureAwait(false);
+
+        _activeProgressToken = null;
+    }
+
     private async Task<string?> ReadMessageAsync(CancellationToken cancellationToken)
     {
         var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -176,13 +278,31 @@ public sealed class JsonRpcServer
     private Task SendErrorAsync(JsonElement id, int code, string message, CancellationToken cancellationToken) =>
         SendAsync(new { jsonrpc = "2.0", id, error = new { code, message } }, cancellationToken);
 
+    private Task SendRequestAsync(string method, object? @params, CancellationToken cancellationToken)
+    {
+        var id = Interlocked.Increment(ref _nextRequestId);
+        return SendAsync(new { jsonrpc = "2.0", id, method, @params }, cancellationToken);
+    }
+
+    private Task SendNotificationAsync(string method, object? @params, CancellationToken cancellationToken) =>
+        SendAsync(new { jsonrpc = "2.0", method, @params }, cancellationToken);
+
     private async Task SendAsync(object message, CancellationToken cancellationToken)
     {
         var json = JsonSerializer.Serialize(message, JsonOptions);
         var body = Encoding.UTF8.GetBytes(json);
         var header = Encoding.ASCII.GetBytes($"Content-Length: {body.Length}\r\n\r\n");
-        await _output.WriteAsync(header, cancellationToken).ConfigureAwait(false);
-        await _output.WriteAsync(body, cancellationToken).ConfigureAwait(false);
-        await _output.FlushAsync(cancellationToken).ConfigureAwait(false);
+
+        await _sendGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await _output.WriteAsync(header, cancellationToken).ConfigureAwait(false);
+            await _output.WriteAsync(body, cancellationToken).ConfigureAwait(false);
+            await _output.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _sendGate.Release();
+        }
     }
 }

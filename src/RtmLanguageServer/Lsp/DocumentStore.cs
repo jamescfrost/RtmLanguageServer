@@ -5,6 +5,8 @@ namespace RtmLanguageServer.Lsp;
 
 public sealed class DocumentStore
 {
+    public event Action<string, bool>? Status;
+
     private readonly ConcurrentDictionary<string, RtmDocument> _documents = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, string> _texts = new(StringComparer.OrdinalIgnoreCase);
     private readonly RtmWorkspaceIndex _workspace = new();
@@ -25,8 +27,10 @@ public sealed class DocumentStore
 
         lock (_gate)
         {
+            Report($"RTM: loading workspace {Path.GetFileName(rootPath)}", showToUser: true);
             LoadWorkspaceFiles(rootPath);
             RebuildWorkspaceAndDocumentsUnsafe();
+            Report($"RTM: workspace symbols ready ({_documents.Count} files indexed)", showToUser: true);
         }
     }
 
@@ -42,6 +46,7 @@ public sealed class DocumentStore
             _texts[uri] = text;
 
             EnsureFallbackWorkspaceLoaded(uri);
+            Report($"RTM: processing {DisplayFileName(uri)}: loading symbols", showToUser: false);
             RebuildWorkspaceAndDocumentsUnsafe();
 
             var document = ParseAndStoreUnsafe(uri, text);
@@ -107,8 +112,15 @@ public sealed class DocumentStore
         if (!_loadedRoots.Add(rootPath))
             return;
 
+        var count = 0;
         foreach (var path in EnumerateRtmFiles(rootPath))
+        {
+            Report($"RTM: processing file {Path.GetFileName(path)}: reading source", showToUser: false);
             TryLoadFile(path, overwrite: false);
+            count++;
+        }
+
+        Report($"RTM: discovered {count} .rtm files under {Path.GetFileName(rootPath)}", showToUser: false);
     }
 
     private static IEnumerable<string> EnumerateRtmFiles(string rootPath)
@@ -185,10 +197,12 @@ public sealed class DocumentStore
         {
             try
             {
+                Report($"RTM: processing file {DisplayFileName(uri)}: loading symbols", showToUser: false);
                 rebuilt[uri] = RtmDocument.Parse(uri, text, _workspace);
             }
-            catch
+            catch (Exception ex)
             {
+                Report($"RTM: could not index {DisplayFileName(uri)}: {ex.Message}", showToUser: true);
                 if (_documents.TryGetValue(uri, out var previous))
                     rebuilt[uri] = previous;
             }
@@ -207,6 +221,15 @@ public sealed class DocumentStore
         var document = RtmDocument.Parse(uri, text, _workspace);
         _documents[uri] = document;
         return document;
+    }
+
+
+    private void Report(string message, bool showToUser) => Status?.Invoke(message, showToUser);
+
+    private static string DisplayFileName(string uri)
+    {
+        var path = RtmUri.ToLocalPath(uri);
+        return string.IsNullOrWhiteSpace(path) ? uri : Path.GetFileName(path);
     }
 
     private static string? UriToLocalPath(string? uri) => RtmUri.ToLocalPath(uri);
