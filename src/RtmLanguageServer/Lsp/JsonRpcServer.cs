@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 
 namespace RtmLanguageServer.Lsp;
 
@@ -13,16 +14,19 @@ public sealed class JsonRpcServer
 
     private readonly Stream _input;
     private readonly Stream _output;
-    private readonly DocumentStore _documents = new();
+    private readonly DocumentStore _documents;
     private readonly SemaphoreSlim _sendGate = new(1, 1);
     private readonly RtmLanguageService _service;
+    private readonly ILogger<JsonRpcServer> _logger;
     private DateTime _lastVisibleStatusUtc = DateTime.MinValue;
     private string? _lastVisibleStatusMessage;
 
-    public JsonRpcServer(Stream input, Stream output)
+    public JsonRpcServer(Stream input, Stream output, ILoggerFactory loggerFactory)
     {
         _input = input;
         _output = output;
+        _logger = loggerFactory.CreateLogger<JsonRpcServer>();
+        _documents = new DocumentStore(loggerFactory);
         _documents.Status += PublishStatus;
         _service = new RtmLanguageService(_documents);
     }
@@ -137,11 +141,14 @@ public sealed class JsonRpcServer
                     if (hasId)
                         await SendErrorAsync(id, -32601, $"Method not found: {method}", cancellationToken)
                             .ConfigureAwait(false);
+                    else
+                        _logger.LogWarning("Received unknown notification method: {Method}", method);
                     break;
             }
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Error handling LSP method {Method}", method);
             if (hasId) await SendErrorAsync(id, -32603, ex.Message, cancellationToken).ConfigureAwait(false);
         }
     }
@@ -164,9 +171,10 @@ public sealed class JsonRpcServer
                 SendStatusBarNotification(message, IsBusyStatus(message));
             }
         }
-        catch
+        catch (Exception ex)
         {
             // Status feedback must never break LSP request handling.
+            _logger.LogWarning(ex, "Failed to publish status message");
         }
     }
 

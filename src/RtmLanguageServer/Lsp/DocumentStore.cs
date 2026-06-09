@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging;
 using RtmLanguageServer.Analysis;
 
 namespace RtmLanguageServer.Lsp;
@@ -13,6 +14,12 @@ public sealed class DocumentStore
     private readonly HashSet<string> _loadedRoots = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _explicitWorkspaceRoots = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _gate = new();
+    private readonly ILogger<DocumentStore> _logger;
+
+    public DocumentStore(ILoggerFactory loggerFactory)
+    {
+        _logger = loggerFactory.CreateLogger<DocumentStore>();
+    }
 
     public void LoadWorkspace(string? rootUri)
     {
@@ -137,7 +144,7 @@ public sealed class DocumentStore
         Report($"RTM: discovered {count} .rtm files under {Path.GetFileName(rootPath)}", showToUser: false);
     }
 
-    private static IEnumerable<string> EnumerateRtmFiles(string rootPath)
+    private IEnumerable<string> EnumerateRtmFiles(string rootPath)
     {
         var pending = new Stack<string>();
         pending.Push(rootPath);
@@ -151,8 +158,9 @@ public sealed class DocumentStore
             {
                 subdirectories = Directory.EnumerateDirectories(directory).ToArray();
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogWarning(ex, "Could not enumerate subdirectories in {Directory}", directory);
                 continue;
             }
 
@@ -170,8 +178,9 @@ public sealed class DocumentStore
             {
                 files = Directory.EnumerateFiles(directory, "*.rtm").ToArray();
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogWarning(ex, "Could not enumerate files in {Directory}", directory);
                 continue;
             }
 
@@ -202,9 +211,9 @@ public sealed class DocumentStore
             else
                 _texts.TryAdd(uri, text);
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore files that cannot be read; opened documents can still be indexed.
+            _logger.LogWarning(ex, "Could not read file {FilePath}", path);
         }
     }
 
@@ -224,9 +233,9 @@ public sealed class DocumentStore
             else
                 _texts.TryAdd(normalizedUri, text);
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore files that cannot be read; opened documents can still be indexed.
+            _logger.LogWarning(ex, "Could not load URI from disk {Uri}", uri);
         }
     }
 
@@ -250,6 +259,7 @@ public sealed class DocumentStore
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Could not parse document {Uri}", uri);
                 Report($"RTM: could not index {DisplayFileName(uri)}: {ex.Message}", showToUser: true);
                 if (_documents.TryGetValue(uri, out var previous))
                     rebuilt[uri] = previous;
