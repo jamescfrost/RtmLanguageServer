@@ -61,7 +61,7 @@ public sealed class JsonRpcServer
 
                         var roots = args.WorkspaceFolders is { Count: > 0 }
                             ? args.WorkspaceFolders.Select(f => f.Uri)
-                            : new[] { args.RootUri ?? args.RootPath };
+                            : [args.RootUri ?? args.RootPath ?? ""];
 
                         await SendResultAsync(id, new
                         {
