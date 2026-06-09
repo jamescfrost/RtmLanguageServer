@@ -130,9 +130,15 @@ public sealed class RtmDocument
 
     public string? WordAt(TextPosition position) => SymbolNameAt(position);
 
-    public RtmSymbol? DefinitionAt(TextPosition position) => Index.DefinitionAt(position);
+    public RtmSymbol? DefinitionAt(TextPosition position) => Index.AllDefinitions
+        .FirstOrDefault(symbol =>
+            string.Equals(symbol.Location.Uri, Uri, StringComparison.OrdinalIgnoreCase)
+            && symbol.Location.Range.Contains(position));
 
-    public RtmReference? ReferenceAt(TextPosition position) => Index.ReferenceAt(position);
+    public RtmReference? ReferenceAt(TextPosition position) => Index.AllReferences
+        .FirstOrDefault(reference =>
+            string.Equals(reference.Location.Uri, Uri, StringComparison.OrdinalIgnoreCase)
+            && reference.Location.Range.Contains(position));
 
     private static bool IsIdentifierChar(char c) => char.IsLetterOrDigit(c) || c is '_' or '.' or '$' or '@' or '-';
 
@@ -163,8 +169,6 @@ public sealed class RtmDocument
 
     public Location MapGeneratedLocation(Location generatedLocation)
     {
-        return new Location(
-            generatedLocation.Uri,
-            MapGeneratedRange(generatedLocation.Range));
+        return Preprocessed.MapLocation(generatedLocation.Uri, generatedLocation.Range);
     }
 }

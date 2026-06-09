@@ -41,9 +41,7 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
         if (string.IsNullOrWhiteSpace(name))
             return;
 
-        var range = RangeFromToken(id.Symbol);
-
-        var symbol = new NameIncludeSymbol(name, new Location(_uri, range))
+        var symbol = new NameIncludeSymbol(name, LocationFromToken(id.Symbol))
         {
             Scope = _currentScope
         };
@@ -55,7 +53,7 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
     {
         Define(
             context.ID()?.Symbol,
-            symbol => new OverlaySymbol(symbol.Name, new Location(_uri, symbol.Range)),
+            symbol => new OverlaySymbol(symbol.Name, symbol.Location),
             afterDefine: symbol =>
             {
                 _currentOverlay = (OverlaySymbol)symbol;
@@ -75,7 +73,7 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
     {
         Define(
             context.DOLLAR_PROG()?.Symbol,
-            symbol => new ProgramSymbol("$PROG", new Location(_uri, symbol.Range)),
+            symbol => new ProgramSymbol("$PROG", symbol.Location),
             afterDefine: symbol =>
             {
                 _currentProg = (ProgramSymbol)symbol;
@@ -96,7 +94,7 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
     {
         Define(
             context.ID()?.Symbol,
-            symbol => new ProcedureSymbol(symbol.Name, new Location(_uri, symbol.Range)),
+            symbol => new ProcedureSymbol(symbol.Name, symbol.Location),
             afterDefine: symbol =>
             {
                 _currentProcedure = (ProcedureSymbol)symbol;
@@ -130,7 +128,7 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
 
         Define(
             token,
-            symbol => new FieldSymbol(symbol.Name, new Location(_uri, symbol.Range))
+            symbol => new FieldSymbol(symbol.Name, symbol.Location)
             {
                 EditMask = ParseEditMask(context),
                 Dimensions = ParseDimensions(context).ToArray(),
@@ -144,7 +142,7 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
         {
             Define(
                 id.Symbol,
-                symbol => new FileSymbol(symbol.Name, new Location(_uri, symbol.Range)));
+                symbol => new FileSymbol(symbol.Name, symbol.Location));
         }
     }
 
@@ -154,7 +152,7 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
         {
             Define(
                 id.Symbol,
-                symbol => new ExternalSymbol(symbol.Name, new Location(_uri, symbol.Range)));
+                symbol => new ExternalSymbol(symbol.Name, symbol.Location));
         }
     }
 
@@ -212,8 +210,8 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
         if (string.IsNullOrWhiteSpace(name))
             return;
 
-        var range = RangeFromToken(token);
-        var symbol = createSymbol(new PendingSymbol(name, range));
+        var location = LocationFromToken(token);
+        var symbol = createSymbol(new PendingSymbol(name, location));
         symbol.Scope = _currentScope;
 
         if (_currentOverlay is not null && symbol is not OverlaySymbol)
@@ -270,7 +268,7 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
 
     private Location LocationFromToken(IToken token)
     {
-        return new Location(_uri, RangeFromToken(token));
+        return _preprocessed.MapLocation(_uri, token.GetRange());
     }
 
     public static string CleanName(string? text)
@@ -280,7 +278,10 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
             : text.Trim().TrimStart('\'').TrimStart('$');
     }
 
-    private readonly record struct PendingSymbol(string Name, TextRange Range);
+    private readonly record struct PendingSymbol(string Name, Location Location)
+    {
+        public TextRange Range => Location.Range;
+    }
 
     private readonly record struct PendingReference(string Name, Location Location);
 
