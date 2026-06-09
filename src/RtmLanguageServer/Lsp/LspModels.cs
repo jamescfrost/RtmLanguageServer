@@ -79,3 +79,17 @@ public sealed class Hover
     [JsonPropertyName("contents")] public MarkupContent Contents { get; set; } = new();
     [JsonPropertyName("range")] public TextRange? Range { get; set; }
 }
+
+public sealed class Diagnostic
+{
+    [JsonPropertyName("range")] public TextRange Range { get; set; } = new(new TextPosition(0, 0), new TextPosition(0, 0));
+    [JsonPropertyName("severity")] public int Severity { get; set; } = 1; // 1=Error, 2=Warning, 3=Info, 4=Hint
+    [JsonPropertyName("source")] public string Source { get; set; } = "rtm";
+    [JsonPropertyName("message")] public string Message { get; set; } = string.Empty;
+}
+
+public sealed class PublishDiagnosticsParams
+{
+    [JsonPropertyName("uri")] public string Uri { get; set; } = string.Empty;
+    [JsonPropertyName("diagnostics")] public List<Diagnostic> Diagnostics { get; set; } = [];
+}

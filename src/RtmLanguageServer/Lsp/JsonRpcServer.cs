@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using RtmLanguageServer.Analysis;
+using RtmLanguageServer.Analysis.Core;
 
 namespace RtmLanguageServer.Lsp;
 
@@ -104,7 +106,8 @@ public sealed class JsonRpcServer
                 case "textDocument/didOpen":
                     {
                         var args = paramsEl.Deserialize<DidOpenTextDocumentParams>(JsonOptions)!;
-                        _documents.OpenOrUpdate(args.TextDocument.Uri, args.TextDocument.Text);
+                        var document = _documents.OpenOrUpdate(args.TextDocument.Uri, args.TextDocument.Text);
+                        PublishDiagnostics(document);
                         break;
                     }
 
@@ -112,7 +115,8 @@ public sealed class JsonRpcServer
                     {
                         var args = paramsEl.Deserialize<DidChangeTextDocumentParams>(JsonOptions)!;
                         var text = args.ContentChanges.LastOrDefault()?.Text ?? string.Empty;
-                        _documents.OpenOrUpdate(args.TextDocument.Uri, text);
+                        var document = _documents.OpenOrUpdate(args.TextDocument.Uri, text);
+                        PublishDiagnostics(document);
                         break;
                     }
 
@@ -226,6 +230,98 @@ public sealed class JsonRpcServer
         return !(message.Contains("ready", StringComparison.OrdinalIgnoreCase)
                  || message.Contains("complete", StringComparison.OrdinalIgnoreCase)
                  || message.Contains("could not index", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void PublishDiagnostics(RtmDocument document)
+    {
+        try
+        {
+            var diagnostics = ParseDiagnostics(document.Diagnostics);
+
+            var publishParams = new PublishDiagnosticsParams
+            {
+                Uri = document.Uri,
+                Diagnostics = diagnostics
+            };
+
+            SendNotificationAsync("textDocument/publishDiagnostics", publishParams, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult();
+
+            if (diagnostics.Count > 0)
+            {
+                _logger.LogInformation("Published {Count} diagnostic(s) for {Uri}", diagnostics.Count, document.Uri);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to publish diagnostics for {Uri}", document.Uri);
+        }
+    }
+
+    private static List<Diagnostic> ParseDiagnostics(IReadOnlyList<string> diagnosticMessages)
+    {
+        var diagnostics = new List<Diagnostic>();
+
+        foreach (var message in diagnosticMessages)
+        {
+            var diagnostic = ParseDiagnosticMessage(message);
+            if (diagnostic is not null)
+                diagnostics.Add(diagnostic);
+        }
+
+        return diagnostics;
+    }
+
+    private static Diagnostic? ParseDiagnosticMessage(string message)
+    {
+        // Expected formats:
+        // "Lexer 10:5: token recognition error at: '$'"
+        // "Parser 15:10: mismatched input 'END' expecting ENDPROC"
+
+        var parts = message.Split(':', 3);
+        if (parts.Length < 3)
+        {
+            // Fallback: create diagnostic at line 0
+            return new Diagnostic
+            {
+                Range = new TextRange(new TextPosition(0, 0), new TextPosition(0, 0)),
+                Severity = 1, // Error
+                Source = "rtm",
+                Message = message
+            };
+        }
+
+        var source = parts[0].Trim(); // "Lexer" or "Parser"
+        var lineCol = parts[1].Trim();
+        var errorMessage = parts[2].Trim();
+
+        // Parse line:column
+        var lineColParts = lineCol.Split(':');
+        if (lineColParts.Length != 2 
+            || !int.TryParse(lineColParts[0], out var line) 
+            || !int.TryParse(lineColParts[1], out var col))
+        {
+            // Fallback
+            return new Diagnostic
+            {
+                Range = new TextRange(new TextPosition(0, 0), new TextPosition(0, 0)),
+                Severity = 1,
+                Source = "rtm",
+                Message = message
+            };
+        }
+
+        // LSP uses 0-based line numbers, ANTLR uses 1-based
+        var position = new TextPosition(line - 1, col);
+
+        return new Diagnostic
+        {
+            Range = new TextRange(position, new TextPosition(line - 1, col + 1)),
+            Severity = 1, // Error
+            Source = source.ToLowerInvariant(),
+            Message = errorMessage
+        };
     }
 
     private async Task<string?> ReadMessageAsync(CancellationToken cancellationToken)
