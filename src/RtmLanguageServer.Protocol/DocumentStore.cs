@@ -137,57 +137,36 @@ public sealed class DocumentStore
 
     private IEnumerable<string> EnumerateRtmFiles(string rootPath)
     {
-        var pending = new Stack<string>();
-        pending.Push(rootPath);
-
-        while (pending.Count > 0)
+        var options = new EnumerationOptions
         {
-            var directory = pending.Pop();
+            RecurseSubdirectories = true,
+            IgnoreInaccessible = true,
+            AttributesToSkip = FileAttributes.Hidden | FileAttributes.System,
+            MatchCasing = MatchCasing.CaseInsensitive
+        };
 
-            IEnumerable<string> subdirectories;
-            try
-            {
-                subdirectories = Directory.EnumerateDirectories(directory).ToArray();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Could not enumerate subdirectories in {Directory}", directory);
-                continue;
-            }
-
-            foreach (var subdirectory in subdirectories)
-            {
-                var name = Path.GetFileName(subdirectory);
-                if (IsIgnoredWorkspaceDirectory(name))
-                    continue;
-
-                pending.Push(subdirectory);
-            }
-
-            IEnumerable<string> files;
-            try
-            {
-                files = Directory.EnumerateFiles(directory, "*.rtm").ToArray();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Could not enumerate files in {Directory}", directory);
-                continue;
-            }
-
-            foreach (var file in files)
-                yield return file;
+        IEnumerable<string> files;
+        try
+        {
+            files = Directory.EnumerateFiles(rootPath, "*.rtm", options);
         }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not enumerate RTM files in {Directory}", rootPath);
+            return [];
+        }
+
+        return files.Where(filePath => !IsInIgnoredDirectory(filePath));
     }
 
-    private static bool IsIgnoredWorkspaceDirectory(string name)
+    private static bool IsInIgnoredDirectory(string filePath)
     {
-        return name.Equals(".git", StringComparison.OrdinalIgnoreCase)
-            || name.Equals(".vs", StringComparison.OrdinalIgnoreCase)
-            || name.Equals(".vscode", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("bin", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("obj", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("node_modules", StringComparison.OrdinalIgnoreCase);
+        var ignoredDirectories = new[] { ".git", ".vs", ".vscode", "bin", "obj", "node_modules" };
+
+        var pathParts = filePath.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        return pathParts.Any(part => 
+            ignoredDirectories.Contains(part, StringComparer.OrdinalIgnoreCase));
     }
 
     private void TryLoadFile(string path, bool overwrite)
