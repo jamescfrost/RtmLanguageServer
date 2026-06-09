@@ -8,7 +8,7 @@ namespace RtmLanguageServer.Protocol;
 
 public sealed class DocumentStore
 {
-    public event Action<string, bool>? Status;
+    public event Action<WorkspaceStatus>? Status;
 
     private readonly ConcurrentDictionary<string, RtmDocument> _documents = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, string> _texts = new(StringComparer.OrdinalIgnoreCase);
@@ -40,10 +40,10 @@ public sealed class DocumentStore
         lock (_gate)
         {
             _explicitWorkspaceRoots.Add(rootPath);
-            Report($"RTM: loading workspace {Path.GetFileName(rootPath)}", showToUser: true);
+            Report(WorkspaceStatus.Milestone($"RTM: loading workspace {Path.GetFileName(rootPath)}", isBusy: true));
             LoadWorkspaceFiles(rootPath);
             RebuildWorkspaceAndDocumentsUnsafe();
-            Report($"RTM: workspace symbols ready ({_documents.Count} files indexed)", showToUser: true);
+            Report(WorkspaceStatus.Milestone($"RTM: workspace symbols ready ({_documents.Count} files indexed)", isBusy: false));
         }
     }
 
@@ -56,12 +56,12 @@ public sealed class DocumentStore
             _texts[uri] = text;
 
             EnsureFallbackWorkspaceLoaded(uri);
-            Report($"RTM: processing {DisplayFileName(uri)}: loading symbols", showToUser: false);
+            Report(WorkspaceStatus.Trace($"RTM: processing {DisplayFileName(uri)}: loading symbols"));
             RebuildWorkspaceAndDocumentsUnsafe();
 
             var document = ParseAndStoreUnsafe(uri, text);
             SemanticResolver.ResolveAll(_documents.Values);
-            Report($"RTM: ready ({_documents.Count} files indexed)", showToUser: true);
+            Report(WorkspaceStatus.Milestone($"RTM: ready ({_documents.Count} files indexed)", isBusy: false));
             return document;
         }
     }
@@ -127,12 +127,12 @@ public sealed class DocumentStore
         var count = 0;
         foreach (var path in EnumerateRtmFiles(rootPath))
         {
-            Report($"RTM: processing file {Path.GetFileName(path)}: reading source", showToUser: false);
+            Report(WorkspaceStatus.Trace($"RTM: processing file {Path.GetFileName(path)}: reading source"));
             TryLoadFile(path, overwrite: false);
             count++;
         }
 
-        Report($"RTM: discovered {count} .rtm files under {Path.GetFileName(rootPath)}", showToUser: false);
+        Report(WorkspaceStatus.Trace($"RTM: discovered {count} .rtm files under {Path.GetFileName(rootPath)}"));
     }
 
     private IEnumerable<string> EnumerateRtmFiles(string rootPath)
@@ -222,13 +222,13 @@ public sealed class DocumentStore
         {
             try
             {
-                Report($"RTM: processing file {DisplayFileName(uri)}: loading symbols", showToUser: false);
+                Report(WorkspaceStatus.Trace($"RTM: processing file {DisplayFileName(uri)}: loading symbols"));
                 rebuilt[uri] = RtmDocument.Parse(uri, text, _workspace);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Could not parse document {Uri}", uri);
-                Report($"RTM: could not index {DisplayFileName(uri)}: {ex.Message}", showToUser: true);
+                Report(WorkspaceStatus.Important($"RTM: could not index {DisplayFileName(uri)}: {ex.Message}"));
                 if (_documents.TryGetValue(uri, out var previous))
                     rebuilt[uri] = previous;
             }
@@ -249,7 +249,7 @@ public sealed class DocumentStore
         return document;
     }
 
-    private void Report(string message, bool showToUser) => Status?.Invoke(message, showToUser);
+    private void Report(WorkspaceStatus status) => Status?.Invoke(status);
 
     private static string DisplayFileName(string uri)
     {

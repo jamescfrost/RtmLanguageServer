@@ -20,8 +20,7 @@ public sealed class JsonRpcServer
     private readonly SemaphoreSlim _sendGate = new(1, 1);
     private readonly RtmLanguageService _service;
     private readonly ILogger<JsonRpcServer> _logger;
-    private DateTime _lastVisibleStatusUtc = DateTime.MinValue;
-    private string? _lastVisibleStatusMessage;
+    private DateTime _lastStatusBarUpdateUtc = DateTime.MinValue;
 
     public JsonRpcServer(Stream input, Stream output, ILoggerFactory loggerFactory)
     {
@@ -153,17 +152,17 @@ public sealed class JsonRpcServer
         }
     }
 
-    private void PublishStatus(string message, bool showToUser)
+    private void PublishStatus(WorkspaceStatus status)
     {
         try
         {
-            SendNotificationAsync("window/logMessage", new { type = 3, message }, CancellationToken.None)
+            SendNotificationAsync("window/logMessage", new { type = 3, message = status.Message }, CancellationToken.None)
                 .GetAwaiter()
                 .GetResult();
 
-            if (showToUser || ShouldPublishStatusBarUpdate(message))
+            if (ShouldSendStatusBarUpdate(status))
             {
-                SendStatusBarNotification(message, IsBusyStatus(message));
+                SendStatusBarNotification(status.Message, status.IsBusy);
             }
         }
         catch (Exception ex)
@@ -172,29 +171,22 @@ public sealed class JsonRpcServer
         }
     }
 
-    private bool ShouldPublishStatusBarUpdate(string message)
+    private bool ShouldSendStatusBarUpdate(WorkspaceStatus status)
     {
-        if (string.IsNullOrWhiteSpace(message))
-            return false;
-
-        if (message.Contains("workspace symbols ready", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("could not index", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("loading workspace", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("workspace indexing complete", StringComparison.OrdinalIgnoreCase))
+        if (status.Kind == StatusKind.Important)
             return true;
 
-        if (!message.Contains("processing file", StringComparison.OrdinalIgnoreCase)
-            && !message.Contains("processing ", StringComparison.OrdinalIgnoreCase))
-            return false;
+        if (status.Kind == StatusKind.Milestone)
+        {
+            var now = DateTime.UtcNow;
+            if (now - _lastStatusBarUpdateUtc < TimeSpan.FromMilliseconds(250))
+                return false;
 
-        var now = DateTime.UtcNow;
-        if (string.Equals(_lastVisibleStatusMessage, message, StringComparison.Ordinal)
-            || now - _lastVisibleStatusUtc < TimeSpan.FromMilliseconds(250))
-            return false;
+            _lastStatusBarUpdateUtc = now;
+            return true;
+        }
 
-        _lastVisibleStatusUtc = now;
-        _lastVisibleStatusMessage = message;
-        return true;
+        return false;
     }
 
     private void SendStatusBarNotification(string message, bool busy)
@@ -206,16 +198,6 @@ public sealed class JsonRpcServer
         }, CancellationToken.None)
             .GetAwaiter()
             .GetResult();
-    }
-
-    private static bool IsBusyStatus(string message)
-    {
-        if (string.IsNullOrWhiteSpace(message))
-            return false;
-
-        return !(message.Contains("ready", StringComparison.OrdinalIgnoreCase)
-                 || message.Contains("complete", StringComparison.OrdinalIgnoreCase)
-                 || message.Contains("could not index", StringComparison.OrdinalIgnoreCase));
     }
 
     private void PublishDiagnostics(RtmDocument document)
