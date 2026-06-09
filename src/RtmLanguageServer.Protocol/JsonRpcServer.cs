@@ -267,7 +267,7 @@ public sealed class JsonRpcServer
             return new Diagnostic
             {
                 Range = new TextRange(new TextPosition(0, 0), new TextPosition(0, 0)),
-                Severity = 1,
+                Severity = (int)DiagnosticSeverity.Error,
                 Source = "rtm",
                 Message = message
             };
@@ -285,7 +285,7 @@ public sealed class JsonRpcServer
             return new Diagnostic
             {
                 Range = new TextRange(new TextPosition(0, 0), new TextPosition(0, 0)),
-                Severity = 1,
+                Severity = (int)DiagnosticSeverity.Error,
                 Source = "rtm",
                 Message = message
             };
@@ -296,7 +296,7 @@ public sealed class JsonRpcServer
         return new Diagnostic
         {
             Range = new TextRange(position, new TextPosition(line - 1, col + 1)),
-            Severity = 1,
+            Severity = (int)DiagnosticSeverity.Error,
             Source = source.ToLowerInvariant(),
             Message = errorMessage
         };

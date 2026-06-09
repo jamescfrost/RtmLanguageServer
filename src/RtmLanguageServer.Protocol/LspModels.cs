@@ -83,7 +83,7 @@ public sealed class Hover
 public sealed class Diagnostic
 {
     [JsonPropertyName("range")] public TextRange Range { get; set; } = new(new TextPosition(0, 0), new TextPosition(0, 0));
-    [JsonPropertyName("severity")] public int Severity { get; set; } = 1; // 1=Error, 2=Warning, 3=Info, 4=Hint
+    [JsonPropertyName("severity")] public int Severity { get; set; } = (int)DiagnosticSeverity.Error;
     [JsonPropertyName("source")] public string Source { get; set; } = "rtm";
     [JsonPropertyName("message")] public string Message { get; set; } = string.Empty;
 }
