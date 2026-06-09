@@ -50,7 +50,7 @@ public sealed class RtmDocument
         var lexer = new RtmLexer(input);
 
         lexer.RemoveErrorListeners();
-        lexer.AddErrorListener(new CollectingLexerErrorListener(diagnostics));
+        lexer.AddErrorListener(new CollectingErrorListener<int>(diagnostics, "Lexer"));
 
         var tokens = new CommonTokenStream(lexer);
 
@@ -60,7 +60,7 @@ public sealed class RtmDocument
         };
 
         parser.RemoveErrorListeners();
-        parser.AddErrorListener(new CollectingParserErrorListener(diagnostics));
+        parser.AddErrorListener(new CollectingErrorListener<IToken>(diagnostics, "Parser"));
 
         var tree = parser.start();
         tokens.Fill();
@@ -157,26 +157,6 @@ public sealed class RtmDocument
             && reference.Location.Range.Contains(position));
 
     private static bool IsIdentifierChar(char c) => char.IsLetterOrDigit(c) || c is '_' or '.' or '$' or '@' or '-';
-
-    private sealed class CollectingLexerErrorListener : IAntlrErrorListener<int>
-    {
-        private readonly List<string> _diagnostics;
-        public CollectingLexerErrorListener(List<string> diagnostics) => _diagnostics = diagnostics;
-
-        public void SyntaxError(TextWriter output, IRecognizer recognizer, int offendingSymbol, int line,
-            int charPositionInLine, string msg, RecognitionException e)
-            => _diagnostics.Add($"Lexer {line}:{charPositionInLine}: {msg}");
-    }
-
-    private sealed class CollectingParserErrorListener : IAntlrErrorListener<IToken>
-    {
-        private readonly List<string> _diagnostics;
-        public CollectingParserErrorListener(List<string> diagnostics) => _diagnostics = diagnostics;
-
-        public void SyntaxError(TextWriter output, IRecognizer recognizer, IToken offendingSymbol, int line,
-            int charPositionInLine, string msg, RecognitionException e)
-            => _diagnostics.Add($"Parser {line}:{charPositionInLine}: {msg}");
-    }
 
     public TextRange MapGeneratedRange(TextRange generatedRange)
     {
