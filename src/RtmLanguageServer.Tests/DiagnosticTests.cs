@@ -1,4 +1,4 @@
-using RtmLanguageServer.Analysis;
+using RtmLanguageServer.Core.Parsing;
 using Xunit;
 
 namespace RtmLanguageServer.Tests;

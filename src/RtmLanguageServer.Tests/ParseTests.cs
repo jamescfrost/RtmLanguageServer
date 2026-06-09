@@ -1,8 +1,8 @@
-﻿using Antlr4.Runtime;
+using Antlr4.Runtime;
 using Antlr4.Runtime.Tree;
-using RtmLanguageServer.Analysis;
-using RtmLanguageServer.Analysis.Symbols;
-using RtmLanguageServer.Generated;
+using RtmLanguageServer.Core.Parsing;
+using RtmLanguageServer.Core.Symbols;
+using RtmLanguageServer.Core.Generated;
 using Xunit;
 
 namespace RtmLanguageServer.Tests

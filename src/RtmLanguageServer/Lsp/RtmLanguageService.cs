@@ -1,6 +1,6 @@
-using RtmLanguageServer.Analysis;
-using RtmLanguageServer.Analysis.Core;
-using RtmLanguageServer.Analysis.Symbols;
+using RtmLanguageServer.Core.Common;
+using RtmLanguageServer.Core.Parsing;
+using RtmLanguageServer.Core.Symbols;
 
 namespace RtmLanguageServer.Lsp;
 

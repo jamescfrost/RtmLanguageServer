@@ -9,17 +9,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Antlr4.Runtime.Standard" Version="4.13.1" />
-    <PackageReference Include="Antlr4BuildTasks" Version="12.14.0" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <Antlr4 Include="Grammar/RtmLexer.g4" Listener="true" Visitor="false" Package="RtmLanguageServer.Generated" />
-    <Antlr4 Include="Grammar\RtmParser.g4">
-      <Package>RtmLanguageServer.Generated</Package>
-      <Visitor>false</Visitor>
-    </Antlr4>
+    <ProjectReference Include="..\RtmLanguageServer.Core\RtmLanguageServer.Core.csproj" />
   </ItemGroup>
 </Project>

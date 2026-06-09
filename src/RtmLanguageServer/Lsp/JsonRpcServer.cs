@@ -2,8 +2,8 @@ using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using RtmLanguageServer.Analysis;
-using RtmLanguageServer.Analysis.Core;
+using RtmLanguageServer.Core.Common;
+using RtmLanguageServer.Core.Parsing;
 
 namespace RtmLanguageServer.Lsp;
 

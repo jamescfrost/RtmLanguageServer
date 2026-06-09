@@ -1,4 +1,4 @@
-using RtmLanguageServer.Analysis.Core;
+using RtmLanguageServer.Core.Common;
 using System.Text.Json.Serialization;
 
 namespace RtmLanguageServer.Lsp;

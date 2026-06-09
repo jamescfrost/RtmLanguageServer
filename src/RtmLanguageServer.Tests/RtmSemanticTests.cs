@@ -1,5 +1,5 @@
-using RtmLanguageServer.Analysis;
-using RtmLanguageServer.Analysis.Symbols;
+using RtmLanguageServer.Core.Parsing;
+using RtmLanguageServer.Core.Symbols;
 using Xunit;
 
 namespace RtmLanguageServer.Tests;
