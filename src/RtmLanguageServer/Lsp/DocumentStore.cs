@@ -11,6 +11,7 @@ public sealed class DocumentStore
     private readonly ConcurrentDictionary<string, string> _texts = new(StringComparer.OrdinalIgnoreCase);
     private readonly RtmWorkspaceIndex _workspace = new();
     private readonly HashSet<string> _loadedRoots = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _explicitWorkspaceRoots = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _gate = new();
 
     public void LoadWorkspace(string? rootUri)
@@ -25,8 +26,11 @@ public sealed class DocumentStore
         if (string.IsNullOrWhiteSpace(rootPath) || !Directory.Exists(rootPath))
             return;
 
+        rootPath = Path.GetFullPath(rootPath);
+
         lock (_gate)
         {
+            _explicitWorkspaceRoots.Add(rootPath);
             Report($"RTM: loading workspace {Path.GetFileName(rootPath)}", showToUser: true);
             LoadWorkspaceFiles(rootPath);
             RebuildWorkspaceAndDocumentsUnsafe();
@@ -46,7 +50,6 @@ public sealed class DocumentStore
             _texts[uri] = text;
 
             EnsureFallbackWorkspaceLoaded(uri);
-            Report($"RTM: processing {DisplayFileName(uri)}: loading symbols", showToUser: false);
             RebuildWorkspaceAndDocumentsUnsafe();
 
             var document = ParseAndStoreUnsafe(uri, text);
@@ -84,26 +87,35 @@ public sealed class DocumentStore
         if (string.IsNullOrWhiteSpace(containingFolder) || !Directory.Exists(containingFolder))
             return;
 
-        foreach (var root in CandidateFallbackRoots(containingFolder))
-            LoadWorkspaceFiles(root);
+        containingFolder = Path.GetFullPath(containingFolder);
+
+        // If VS Code supplied workspace folders during initialize, never walk above or
+        // around those roots. Loading parent folders caused unrelated directories to be
+        // scanned and made indexing noisy/slow.
+        if (_explicitWorkspaceRoots.Count > 0)
+        {
+            foreach (var workspaceRoot in _explicitWorkspaceRoots)
+            {
+                if (IsSameOrChildPath(containingFolder, workspaceRoot))
+                    LoadWorkspaceFiles(workspaceRoot);
+            }
+
+            return;
+        }
+
+        // Fallback for clients that did not send workspace folders: only scan the folder
+        // that contains the opened document. Do not climb to parents.
+        LoadWorkspaceFiles(containingFolder);
     }
 
-    private static IEnumerable<string> CandidateFallbackRoots(string containingFolder)
+    private static bool IsSameOrChildPath(string path, string root)
     {
-        var current = new DirectoryInfo(containingFolder);
-        var yielded = 0;
+        path = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        root = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
-        while (current is not null && yielded < 4)
-        {
-            yield return current.FullName;
-            yielded++;
-
-            if (Directory.EnumerateFiles(current.FullName, "*.sln").Any()
-                || Directory.EnumerateDirectories(current.FullName, ".git").Any())
-                yield break;
-
-            current = current.Parent;
-        }
+        return string.Equals(path, root, StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith(root + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
     private void LoadWorkspaceFiles(string rootPath)
@@ -115,7 +127,7 @@ public sealed class DocumentStore
         var count = 0;
         foreach (var path in EnumerateRtmFiles(rootPath))
         {
-            Report($"RTM: processing file {Path.GetFileName(path)}: reading source", showToUser: false);
+            Report($"RTM: reading source {Path.GetFileName(path)}", showToUser: false);
             TryLoadFile(path, overwrite: false);
             count++;
         }
@@ -125,21 +137,55 @@ public sealed class DocumentStore
 
     private static IEnumerable<string> EnumerateRtmFiles(string rootPath)
     {
-        IEnumerable<string> files;
-        try
-        {
-            files = Directory.EnumerateFiles(rootPath, "*", SearchOption.AllDirectories);
-        }
-        catch
-        {
-            yield break;
-        }
+        var pending = new Stack<string>();
+        pending.Push(rootPath);
 
-        foreach (var file in files)
+        while (pending.Count > 0)
         {
-            if (string.Equals(Path.GetExtension(file), ".rtm", StringComparison.OrdinalIgnoreCase))
+            var directory = pending.Pop();
+
+            IEnumerable<string> subdirectories;
+            try
+            {
+                subdirectories = Directory.EnumerateDirectories(directory).ToArray();
+            }
+            catch
+            {
+                continue;
+            }
+
+            foreach (var subdirectory in subdirectories)
+            {
+                var name = Path.GetFileName(subdirectory);
+                if (IsIgnoredWorkspaceDirectory(name))
+                    continue;
+
+                pending.Push(subdirectory);
+            }
+
+            IEnumerable<string> files;
+            try
+            {
+                files = Directory.EnumerateFiles(directory, "*.rtm").ToArray();
+            }
+            catch
+            {
+                continue;
+            }
+
+            foreach (var file in files)
                 yield return file;
         }
+    }
+
+    private static bool IsIgnoredWorkspaceDirectory(string name)
+    {
+        return name.Equals(".git", StringComparison.OrdinalIgnoreCase)
+            || name.Equals(".vs", StringComparison.OrdinalIgnoreCase)
+            || name.Equals(".vscode", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("bin", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("obj", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("node_modules", StringComparison.OrdinalIgnoreCase);
     }
 
     private void TryLoadFile(string path, bool overwrite)
@@ -197,7 +243,7 @@ public sealed class DocumentStore
         {
             try
             {
-                Report($"RTM: processing file {DisplayFileName(uri)}: loading symbols", showToUser: false);
+                Report($"RTM: loading symbols {DisplayFileName(uri)}", showToUser: false);
                 rebuilt[uri] = RtmDocument.Parse(uri, text, _workspace);
             }
             catch (Exception ex)
