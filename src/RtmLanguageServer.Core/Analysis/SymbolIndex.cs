@@ -73,8 +73,7 @@ public sealed class SymbolIndex
             result.Add(symbol.Location);
 
         return result
-            .GroupBy(LocationKey)
-            .Select(g => g.First())
+            .Distinct(LocationEqualityComparer.Instance)
             .ToList();
     }
 
@@ -115,7 +114,4 @@ public sealed class SymbolIndex
     private static bool SameReferenceSpan(RtmReference reference, Location location) =>
         string.Equals(reference.Location.Uri, location.Uri, StringComparison.OrdinalIgnoreCase)
         && reference.Location.Range == location.Range;
-
-    private static string LocationKey(Location l) =>
-        $"{l.Uri}:{l.Range.Start.Line}:{l.Range.Start.Character}:{l.Range.End.Line}:{l.Range.End.Character}";
 }

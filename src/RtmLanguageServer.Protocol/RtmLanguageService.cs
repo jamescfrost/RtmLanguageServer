@@ -36,7 +36,7 @@ public sealed class RtmLanguageService
             refs.AddRange(doc.Index.FindReferences(symbol, request.Context.IncludeDeclaration));
 
         return refs
-            .DistinctBy(LocationKey)
+            .Distinct(LocationEqualityComparer.Instance)
             .OrderBy(l => l.Uri)
             .ThenBy(l => l.Range.Start.Line)
             .ThenBy(l => l.Range.Start.Character)
@@ -99,9 +99,6 @@ public sealed class RtmLanguageService
 
         return char.ToUpperInvariant(value[0]) + value[1..];
     }
-
-    private static string LocationKey(Location l) =>
-        $"{l.Uri}:{l.Range.Start.Line}:{l.Range.Start.Character}:{l.Range.End.Line}:{l.Range.End.Character}";
 
     private static string DisplayUri(string uri) => RtmUri.DisplayName(uri);
 }
