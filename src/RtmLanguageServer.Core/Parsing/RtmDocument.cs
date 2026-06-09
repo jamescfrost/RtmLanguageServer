@@ -17,7 +17,7 @@ public sealed class RtmDocument
         string text,
         CommonTokenStream tokens,
         SymbolIndex index,
-        IReadOnlyList<string> diagnostics,
+        IReadOnlyList<RtmDiagnostic> diagnostics,
         RtmPreprocessedSource preprocessed)
     {
         Uri = uri;
@@ -31,12 +31,12 @@ public sealed class RtmDocument
     public string Uri { get; }
     public string Text { get; }
     public SymbolIndex Index { get; }
-    public IReadOnlyList<string> Diagnostics { get; }
+    public IReadOnlyList<RtmDiagnostic> Diagnostics { get; }
 
     public static RtmDocument Parse(string uri, string text, RtmWorkspaceIndex? workspace = null)
     {
         uri = RtmUri.Normalize(uri);
-        var diagnostics = new List<string>();
+        var diagnostics = new List<RtmDiagnostic>();
 
         workspace ??= new RtmWorkspaceIndex();
         workspace.AddSource(uri, text);

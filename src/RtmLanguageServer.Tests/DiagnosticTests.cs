@@ -54,7 +54,9 @@ public sealed class DiagnosticTests
         Assert.NotEmpty(document.Diagnostics);
         var diagnostic = document.Diagnostics[0];
 
-        // Should contain line:column format
-        Assert.Matches(@"\d+:\d+:", diagnostic);
+        // Should have valid line and column positions
+        Assert.True(diagnostic.Range.Start.Line >= 0);
+        Assert.True(diagnostic.Range.Start.Character >= 0);
+        Assert.NotEmpty(diagnostic.Message);
     }
 }

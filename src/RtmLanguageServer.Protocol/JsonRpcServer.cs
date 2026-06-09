@@ -222,7 +222,15 @@ public sealed class JsonRpcServer
     {
         try
         {
-            var diagnostics = ParseDiagnostics(document.Diagnostics);
+            var diagnostics = document.Diagnostics
+                .Select(d => new Diagnostic
+                {
+                    Range = d.Range,
+                    Severity = (int)d.Severity,
+                    Source = d.Source,
+                    Message = d.Message
+                })
+                .ToList();
 
             var publishParams = new PublishDiagnosticsParams
             {
@@ -243,63 +251,6 @@ public sealed class JsonRpcServer
         {
             _logger.LogWarning(ex, "Failed to publish diagnostics for {Uri}", document.Uri);
         }
-    }
-
-    private static List<Diagnostic> ParseDiagnostics(IReadOnlyList<string> diagnosticMessages)
-    {
-        var diagnostics = new List<Diagnostic>();
-
-        foreach (var message in diagnosticMessages)
-        {
-            var diagnostic = ParseDiagnosticMessage(message);
-            if (diagnostic is not null)
-                diagnostics.Add(diagnostic);
-        }
-
-        return diagnostics;
-    }
-
-    private static Diagnostic? ParseDiagnosticMessage(string message)
-    {
-        var parts = message.Split(':', 3);
-        if (parts.Length < 3)
-        {
-            return new Diagnostic
-            {
-                Range = new TextRange(new TextPosition(0, 0), new TextPosition(0, 0)),
-                Severity = (int)DiagnosticSeverity.Error,
-                Source = "rtm",
-                Message = message
-            };
-        }
-
-        var source = parts[0].Trim();
-        var lineCol = parts[1].Trim();
-        var errorMessage = parts[2].Trim();
-
-        var lineColParts = lineCol.Split(':');
-        if (lineColParts.Length != 2 
-            || !int.TryParse(lineColParts[0], out var line) 
-            || !int.TryParse(lineColParts[1], out var col))
-        {
-            return new Diagnostic
-            {
-                Range = new TextRange(new TextPosition(0, 0), new TextPosition(0, 0)),
-                Severity = (int)DiagnosticSeverity.Error,
-                Source = "rtm",
-                Message = message
-            };
-        }
-
-        var position = new TextPosition(line - 1, col);
-
-        return new Diagnostic
-        {
-            Range = new TextRange(position, new TextPosition(line - 1, col + 1)),
-            Severity = (int)DiagnosticSeverity.Error,
-            Source = source.ToLowerInvariant(),
-            Message = errorMessage
-        };
     }
 
     private async Task<string?> ReadMessageAsync(CancellationToken cancellationToken)

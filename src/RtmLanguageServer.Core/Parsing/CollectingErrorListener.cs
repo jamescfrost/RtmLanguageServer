@@ -1,17 +1,18 @@
 using Antlr4.Runtime;
+using RtmLanguageServer.Core.Common;
 
 namespace RtmLanguageServer.Core.Parsing;
 
 /// <summary>
-/// Collects syntax errors into a list of diagnostic messages.
+/// Collects syntax errors as structured diagnostic objects.
 /// </summary>
 /// <typeparam name="TSymbol">Type of offending symbol (int for lexer, IToken for parser)</typeparam>
 public sealed class CollectingErrorListener<TSymbol> : IAntlrErrorListener<TSymbol>
 {
-    private readonly List<string> _diagnostics;
+    private readonly List<RtmDiagnostic> _diagnostics;
     private readonly string _source;
 
-    public CollectingErrorListener(List<string> diagnostics, string source = "antlr")
+    public CollectingErrorListener(List<RtmDiagnostic> diagnostics, string source = "antlr")
     {
         _diagnostics = diagnostics;
         _source = source;
@@ -26,6 +27,13 @@ public sealed class CollectingErrorListener<TSymbol> : IAntlrErrorListener<TSymb
         string msg,
         RecognitionException e)
     {
-        _diagnostics.Add($"{_source} {line}:{charPositionInLine}: {msg}");
+        var position = new TextPosition(line - 1, charPositionInLine);
+        var range = new TextRange(position, new TextPosition(line - 1, charPositionInLine + 1));
+
+        _diagnostics.Add(new RtmDiagnostic(
+            range,
+            DiagnosticSeverity.Error,
+            _source.ToLowerInvariant(),
+            msg));
     }
 }
