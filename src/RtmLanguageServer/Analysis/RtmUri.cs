@@ -55,8 +55,7 @@ public static class RtmUri
 
         if (LooksLikeWindowsAbsolutePath(path))
         {
-            var normalized = path.Replace('\\', '/');
-            return "file:///" + Uri.EscapeDataString(normalized);
+            return new Uri(path).AbsoluteUri;
         }
 
         return new Uri(Path.GetFullPath(path)).AbsoluteUri;
