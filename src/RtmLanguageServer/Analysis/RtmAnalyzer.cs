@@ -270,22 +270,40 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
             switch (child)
             {
                 case RtmParser.AssignableContext assignable:
-                    owner.Parameters.Add(new FieldReference
-                    {
-                        Name = assignable.GetText(),
-                        Location = LocationFromToken(assignable.Start)
-                    });
+                    AddProcedureParameter(owner, assignable.Start);
                     break;
 
                 case ITerminalNode terminal when terminal.Symbol.Type == RtmParser.STAR:
                     owner.Parameters.Add(new FieldReference
                     {
                         Name = "*",
-                        Location = LocationFromToken(terminal.Symbol)
+                        Location = LocationFromToken(terminal.Symbol),
+                        Overlay = _currentOverlay
                     });
                     break;
             }
         }
+    }
+
+    private void AddProcedureParameter(ProcedureSymbol owner, IToken token)
+    {
+        var name = CleanName(token.Text);
+        if (string.IsNullOrWhiteSpace(name))
+            return;
+
+        var reference = new FieldReference
+        {
+            Name = name,
+            Location = LocationFromToken(token),
+            Overlay = _currentOverlay
+        };
+
+        owner.Parameters.Add(reference);
+
+        // PROG/PROC signature parameters are usages of fields too. They are
+        // deliberately skipped by EnterAssignable to avoid double-indexing, so
+        // index them here explicitly for find-all-references on FieldSymbol.
+        _index.AddReference(reference);
     }
 
     private static bool IsProcedureSignatureParameter(RtmParser.AssignableContext context)
