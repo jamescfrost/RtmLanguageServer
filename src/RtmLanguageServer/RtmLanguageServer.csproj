@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -7,6 +7,10 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>RtmLanguageServer</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Analysis\RtmIncludeDirective.cs" />
+    <Compile Remove="Analysis\RtmUri.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Antlr4.Runtime.Standard" Version="4.13.1" />

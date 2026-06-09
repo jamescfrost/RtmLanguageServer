@@ -65,7 +65,7 @@ public sealed class SymbolIndex
         var result = new List<Location>();
 
         result.AddRange(_allReferences
-            .Where(r => r.Name == symbol.Name)
+            .Where(r => ReferenceCanMatchSymbol(r, symbol))
             .Select(r => r.Location));
 
         if (includeDeclaration)
@@ -82,6 +82,24 @@ public sealed class SymbolIndex
 
     public RtmReference? ReferenceAt(TextPosition position) =>
         AllReferences.FirstOrDefault(reference => reference.Location.Range.Contains(position));
+
+    private static bool ReferenceCanMatchSymbol(RtmReference reference, RtmSymbol symbol)
+    {
+        if (!string.Equals(reference.Name, symbol.Name, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (reference.ResolvedSymbol is not null && SameSymbolIdentity(reference.ResolvedSymbol, symbol))
+            return true;
+
+        return symbol switch
+        {
+            OverlaySymbol => reference is OverlayReference,
+            ProcedureSymbol => reference is ProcedureReference,
+            FieldSymbol => reference is FieldReference,
+            NameIncludeSymbol => reference is IncludeReference,
+            _ => true
+        };
+    }
 
     private static bool SameSymbolIdentity(RtmSymbol left, RtmSymbol right) =>
         left.Location.Uri.Equals(right.Location.Uri, StringComparison.OrdinalIgnoreCase)

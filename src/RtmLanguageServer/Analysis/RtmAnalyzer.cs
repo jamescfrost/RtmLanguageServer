@@ -185,8 +185,47 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
             });
     }
 
+    public override void EnterAssignable(RtmParser.AssignableContext context)
+    {
+        // Assignment targets and return parameters are references too. They do not
+        // pass through identifier_expression, so without this pass “find all
+        // references” misses common overlay-body usages such as FIELD = VALUE.
+        if (IsProcedureSignatureParameter(context))
+            return;
+
+        Reference(
+            context.Start,
+            reference => new FieldReference
+            {
+                Name = reference.Name,
+                Location = reference.Location,
+                Overlay = _currentOverlay
+            });
+    }
+
     public override void EnterFunction_call(RtmParser.Function_callContext context)
     {
+        // OVERLAY NAME(...) is a reference to an overlay, not a procedure named
+        // OVERLAY. Index the target ID so “find all references” on an overlay
+        // includes calls from all parsed overlay bodies.
+        if (context.OVERLAY() is not null)
+        {
+            var overlayId = context.ID()?.Symbol;
+            if (overlayId is not null)
+            {
+                Reference(
+                    overlayId,
+                    reference => new OverlayReference
+                    {
+                        Name = reference.Name,
+                        Location = reference.Location,
+                        Overlay = _currentOverlay
+                    });
+            }
+
+            return;
+        }
+
         Reference(
             context.Start,
             reference => new ProcedureReference
@@ -247,6 +286,16 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
                     break;
             }
         }
+    }
+
+    private static bool IsProcedureSignatureParameter(RtmParser.AssignableContext context)
+    {
+        if (context.Parent is not RtmParser.Parameter_listContext parameterList)
+            return false;
+
+        return parameterList.Parent is RtmParser.ProgContext
+            or RtmParser.ProcContext
+            or RtmParser.AbortContext;
     }
 
     private void Reference(IToken token, Func<PendingReference, RtmReference> createReference)
