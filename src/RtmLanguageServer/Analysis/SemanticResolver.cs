@@ -27,7 +27,8 @@ namespace RtmLanguageServer.Analysis
                 var candidates = snapshot
                     .SelectMany(d => d.Index.AllDefinitions)
                     .Where(s => string.Equals(s.Name, reference.Name, StringComparison.OrdinalIgnoreCase))
-                    .OrderByDescending(s => ReferenceAndSymbolShareOverlay(reference, s))
+                    .OrderByDescending(s => SymbolTypeScore(reference, s))
+                    .ThenByDescending(s => ReferenceAndSymbolShareOverlay(reference, s))
                     .ThenByDescending(s => string.Equals(s.Location.Uri, reference.Location.Uri, StringComparison.OrdinalIgnoreCase))
                     .ThenBy(s => s.Location.Range.Start.Line)
                     .ThenBy(s => s.Location.Range.Start.Character)
@@ -56,6 +57,17 @@ namespace RtmLanguageServer.Analysis
                     .FirstOrDefault();
             }
         }
+
+        private static int SymbolTypeScore(RtmReference reference, RtmSymbol symbol) => reference switch
+        {
+            OverlayReference when symbol is OverlaySymbol => 100,
+            OverlayReference when symbol is ExternalSymbol => -100,
+            ProcedureReference when symbol is ProcedureSymbol => 100,
+            ProcedureReference when symbol is ExternalSymbol => 10,
+            FieldReference when symbol is FieldSymbol => 100,
+            IncludeReference when symbol is NameIncludeSymbol => 100,
+            _ => 0
+        };
 
         private static bool ReferenceAndSymbolShareOverlay(RtmReference reference, RtmSymbol symbol)
         {

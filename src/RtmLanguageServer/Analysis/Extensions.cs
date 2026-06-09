@@ -33,7 +33,8 @@ public static class Extensions
             .FirstOrDefault();
 
         if (exactDefinition is not null)
-            return exactDefinition;
+            return RedirectExternalToWorkspaceOverlay(exactDefinition, allDocuments, document.Uri)
+                ?? exactDefinition;
 
         var exactReference = allDocuments
             .SelectMany(d => d.Index.AllReferences)
@@ -52,8 +53,28 @@ public static class Extensions
 
         return allDocuments
             .SelectMany(d => d.Index.FindDefinitions(name))
-            .OrderByDescending(s => string.Equals(s.Location.Uri, document.Uri, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(s => SymbolTypeScore(exactReference, s))
+            .ThenByDescending(s => s is OverlaySymbol)
+            .ThenBy(s => s is ExternalSymbol)
+            .ThenByDescending(s => string.Equals(s.Location.Uri, document.Uri, StringComparison.OrdinalIgnoreCase))
             .ThenByDescending(s => string.Equals(RtmUri.SourceNameFromUri(s.Location.Uri), sourceName, StringComparison.OrdinalIgnoreCase))
+            .ThenBy(s => s.Location.Range.Start.Line)
+            .ThenBy(s => s.Location.Range.Start.Character)
+            .FirstOrDefault();
+    }
+
+    private static OverlaySymbol? RedirectExternalToWorkspaceOverlay(
+        RtmSymbol symbol,
+        IEnumerable<RtmDocument> documents,
+        string currentUri)
+    {
+        if (symbol is not ExternalSymbol)
+            return null;
+
+        return documents
+            .SelectMany(d => d.Index.FindDefinitions(symbol.Name))
+            .OfType<OverlaySymbol>()
+            .OrderByDescending(s => !string.Equals(s.Location.Uri, currentUri, StringComparison.OrdinalIgnoreCase))
             .ThenBy(s => s.Location.Range.Start.Line)
             .ThenBy(s => s.Location.Range.Start.Character)
             .FirstOrDefault();
@@ -66,4 +87,14 @@ public static class Extensions
     private static int SpanLength(TextRange range) =>
         ((range.End.Line - range.Start.Line) * 100_000) + (range.End.Character - range.Start.Character);
 
+    private static int SymbolTypeScore(RtmReference? reference, RtmSymbol symbol) => reference switch
+    {
+        OverlayReference when symbol is OverlaySymbol => 100,
+        OverlayReference when symbol is ExternalSymbol => -100,
+        ProcedureReference when symbol is ProcedureSymbol => 100,
+        ProcedureReference when symbol is ExternalSymbol => 10,
+        FieldReference when symbol is FieldSymbol => 100,
+        IncludeReference when symbol is NameIncludeSymbol => 100,
+        _ => 0
+    };
 }
