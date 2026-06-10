@@ -18,20 +18,20 @@ public sealed record FieldSymbol(
     public override string GetMarkdown(SymbolIndex? index = null)
     {
         var builder = new StringBuilder();
-        builder.AppendLine($"`{Name}`");
-        var combinedEditMask = new StringBuilder();
+        builder.AppendLine($"{Name} ");
         var editMask = string.IsNullOrWhiteSpace(EditMask) ? "?" : EditMask;
-        combinedEditMask.Append(editMask);
+        builder.Append(editMask);
         foreach(var dimension in Dimensions ?? Array.Empty<int>())
-            combinedEditMask.Append($"*{dimension}");
+            builder.Append($"*{dimension}");
 
-        builder.AppendLine($" `{combinedEditMask}`");
+        return $"`{builder.ToString()}`";
+    }
+
+    public override void AddHoverDetails(List<string> lines, SymbolIndex? index)
+    {
         if (!string.IsNullOrWhiteSpace(AssignedFrom))
         {
-            builder.AppendLine();
-            builder.AppendLine($"assigned from `{AssignedFrom}`");
+            lines.Add($"assigned from `{AssignedFrom}`");
         }
-
-        return builder.ToString();
     }
 }
