@@ -93,3 +93,60 @@ public sealed class PublishDiagnosticsParams
     [JsonPropertyName("uri")] public string Uri { get; set; } = string.Empty;
     [JsonPropertyName("diagnostics")] public List<Diagnostic> Diagnostics { get; set; } = [];
 }
+
+public sealed class SemanticTokensParams
+{
+    [JsonPropertyName("textDocument")] public TextDocumentIdentifier TextDocument { get; set; } = new();
+}
+
+public sealed class SemanticTokens
+{
+    [JsonPropertyName("data")] public List<int> Data { get; set; } = [];
+}
+
+public sealed class SemanticTokensLegend
+{
+    [JsonPropertyName("tokenTypes")] public List<string> TokenTypes { get; set; } = [];
+    [JsonPropertyName("tokenModifiers")] public List<string> TokenModifiers { get; set; } = [];
+}
+
+public static class SemanticTokenTypes
+{
+    public const string Namespace = "namespace";
+    public const string Class = "class";
+    public const string Enum = "enum";
+    public const string Interface = "interface";
+    public const string Struct = "struct";
+    public const string TypeParameter = "typeParameter";
+    public const string Type = "type";
+    public const string Parameter = "parameter";
+    public const string Variable = "variable";
+    public const string Property = "property";
+    public const string EnumMember = "enumMember";
+    public const string Decorator = "decorator";
+    public const string Event = "event";
+    public const string Function = "function";
+    public const string Method = "method";
+    public const string Macro = "macro";
+    public const string Label = "label";
+    public const string Comment = "comment";
+    public const string String = "string";
+    public const string Keyword = "keyword";
+    public const string Number = "number";
+    public const string Regexp = "regexp";
+    public const string Operator = "operator";
+}
+
+public static class SemanticTokenModifiers
+{
+    public const string Declaration = "declaration";
+    public const string Definition = "definition";
+    public const string Readonly = "readonly";
+    public const string Static = "static";
+    public const string Deprecated = "deprecated";
+    public const string Abstract = "abstract";
+    public const string Async = "async";
+    public const string Modification = "modification";
+    public const string Documentation = "documentation";
+    public const string DefaultLibrary = "defaultLibrary";
+}

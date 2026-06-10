@@ -115,7 +115,12 @@ public sealed class JsonRpcServer
                                 textDocumentSync = 1,
                                 definitionProvider = true,
                                 referencesProvider = true,
-                                hoverProvider = true
+                                hoverProvider = true,
+                                semanticTokensProvider = new
+                                {
+                                    legend = SemanticTokensBuilder.GetLegend(),
+                                    full = true
+                                }
                             },
                             serverInfo = new { name = "rtm-language-server", version = "0.1.0" }
                         }, cancellationToken).ConfigureAwait(false);
@@ -173,6 +178,13 @@ public sealed class JsonRpcServer
                     {
                         var args = paramsEl.Deserialize<TextDocumentPositionParams>(JsonOptions)!;
                         await SendResultAsync(id, _service.Hover(args), cancellationToken).ConfigureAwait(false);
+                        break;
+                    }
+
+                case "textDocument/semanticTokens/full":
+                    {
+                        var args = paramsEl.Deserialize<SemanticTokensParams>(JsonOptions)!;
+                        await SendResultAsync(id, _service.GetSemanticTokens(args), cancellationToken).ConfigureAwait(false);
                         break;
                     }
 
