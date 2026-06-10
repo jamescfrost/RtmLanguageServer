@@ -21,6 +21,7 @@ public sealed class JsonRpcServer
     private readonly RtmLanguageService _service;
     private readonly ILogger<JsonRpcServer> _logger;
     private DateTime _lastStatusBarUpdateUtc = DateTime.MinValue;
+    private readonly ConcurrentQueue<Func<Task>> _backgroundNotifications = new();
 
     public JsonRpcServer(Stream input, Stream output, ILoggerFactory loggerFactory)
     {
@@ -34,11 +35,42 @@ public sealed class JsonRpcServer
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
+        var backgroundTask = Task.Run(() => ProcessBackgroundNotificationsAsync(cancellationToken), cancellationToken);
+
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var payload = await ReadMessageAsync(cancellationToken).ConfigureAwait(false);
+                if (payload is null) break;
+                await HandleMessageAsync(payload, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            await backgroundTask.ConfigureAwait(false);
+        }
+    }
+
+    private async Task ProcessBackgroundNotificationsAsync(CancellationToken cancellationToken)
+    {
         while (!cancellationToken.IsCancellationRequested)
         {
-            var payload = await ReadMessageAsync(cancellationToken).ConfigureAwait(false);
-            if (payload is null) break;
-            await HandleMessageAsync(payload, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                if (_backgroundNotifications.TryDequeue(out var notification))
+                {
+                    await notification().ConfigureAwait(false);
+                }
+                else
+                {
+                    await Task.Delay(10, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Background notification failed");
+            }
         }
     }
 
@@ -80,12 +112,12 @@ public sealed class JsonRpcServer
                             serverInfo = new { name = "rtm-language-server", version = "0.1.0" }
                         }, cancellationToken).ConfigureAwait(false);
 
-                        SendStatusBarNotification("RTM: Loading workspace", busy: true);
+                        _backgroundNotifications.Enqueue(() => SendStatusBarNotificationAsync("RTM: Loading workspace", busy: true));
 
                         foreach (var workspaceRoot in roots)
                             _documents.LoadWorkspace(workspaceRoot);
 
-                        SendStatusBarNotification("RTM: Ready", busy: false);
+                        _backgroundNotifications.Enqueue(() => SendStatusBarNotificationAsync("RTM: Ready", busy: false));
 
                         break;
                     }
@@ -154,21 +186,23 @@ public sealed class JsonRpcServer
 
     private void PublishStatus(WorkspaceStatus status)
     {
-        try
+        _backgroundNotifications.Enqueue(async () =>
         {
-            SendNotificationAsync("window/logMessage", new { type = 3, message = status.Message }, CancellationToken.None)
-                .GetAwaiter()
-                .GetResult();
-
-            if (ShouldSendStatusBarUpdate(status))
+            try
             {
-                SendStatusBarNotification(status.Message, status.IsBusy);
+                await SendNotificationAsync("window/logMessage", new { type = 3, message = status.Message }, CancellationToken.None)
+                    .ConfigureAwait(false);
+
+                if (ShouldSendStatusBarUpdate(status))
+                {
+                    await SendStatusBarNotificationAsync(status.Message, status.IsBusy).ConfigureAwait(false);
+                }
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to publish status message");
-        }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to publish status message");
+            }
+        });
     }
 
     private bool ShouldSendStatusBarUpdate(WorkspaceStatus status)
@@ -189,50 +223,50 @@ public sealed class JsonRpcServer
         return false;
     }
 
-    private void SendStatusBarNotification(string message, bool busy)
+    private Task SendStatusBarNotificationAsync(string message, bool busy)
     {
-        SendNotificationAsync("rtm/status", new
+        return SendNotificationAsync("rtm/status", new
         {
             message,
             busy
-        }, CancellationToken.None)
-            .GetAwaiter()
-            .GetResult();
+        }, CancellationToken.None);
     }
 
     private void PublishDiagnostics(RtmDocument document)
     {
-        try
+        _backgroundNotifications.Enqueue(async () =>
         {
-            var diagnostics = document.Diagnostics
-                .Select(d => new Diagnostic
+            try
+            {
+                var diagnostics = document.Diagnostics
+                    .Select(d => new Diagnostic
+                    {
+                        Range = d.Range,
+                        Severity = (int)d.Severity,
+                        Source = d.Source,
+                        Message = d.Message
+                    })
+                    .ToList();
+
+                var publishParams = new PublishDiagnosticsParams
                 {
-                    Range = d.Range,
-                    Severity = (int)d.Severity,
-                    Source = d.Source,
-                    Message = d.Message
-                })
-                .ToList();
+                    Uri = document.Uri,
+                    Diagnostics = diagnostics
+                };
 
-            var publishParams = new PublishDiagnosticsParams
-            {
-                Uri = document.Uri,
-                Diagnostics = diagnostics
-            };
+                await SendNotificationAsync("textDocument/publishDiagnostics", publishParams, CancellationToken.None)
+                    .ConfigureAwait(false);
 
-            SendNotificationAsync("textDocument/publishDiagnostics", publishParams, CancellationToken.None)
-                .GetAwaiter()
-                .GetResult();
-
-            if (diagnostics.Count > 0)
-            {
-                _logger.LogInformation("Published {Count} diagnostic(s) for {Uri}", diagnostics.Count, document.Uri);
+                if (diagnostics.Count > 0)
+                {
+                    _logger.LogInformation("Published {Count} diagnostic(s) for {Uri}", diagnostics.Count, document.Uri);
+                }
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to publish diagnostics for {Uri}", document.Uri);
-        }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to publish diagnostics for {Uri}", document.Uri);
+            }
+        });
     }
 
     private async Task<string?> ReadMessageAsync(CancellationToken cancellationToken)

@@ -12,22 +12,13 @@ public sealed class RtmLanguageService
 
     public IReadOnlyList<Location> GetDefinition(TextDocumentPositionParams request)
     {
-        if (!_documents.TryGet(request.TextDocument.Uri, out var document) || document is null)
-            return [];
-
-        var symbol = document.ResolveSymbolAt(request.Position, _documents.All);
-        if (symbol is null)
-            return [];
-
-        return [symbol.Location];
+        var symbol = ResolveSymbol(request);
+        return symbol is not null ? [symbol.Location] : [];
     }
 
     public IReadOnlyList<Location> FindReferences(ReferenceParams request)
     {
-        if (!_documents.TryGet(request.TextDocument.Uri, out var document) || document is null)
-            return [];
-
-        var symbol = document.ResolveSymbolAt(request.Position, _documents.All);
+        var symbol = ResolveSymbol(request);
         if (symbol is null)
             return [];
 
@@ -35,20 +26,13 @@ public sealed class RtmLanguageService
         foreach (var doc in _documents.All)
             refs.AddRange(doc.Index.FindReferences(symbol, request.Context.IncludeDeclaration));
 
-        return refs
-            .Distinct(LocationEqualityComparer.Instance)
-            .OrderBy(l => l.Uri)
-            .ThenBy(l => l.Range.Start.Line)
-            .ThenBy(l => l.Range.Start.Character)
-            .ToList();
+        refs.Sort(LocationEqualityComparer.Instance);
+        return refs.Distinct(LocationEqualityComparer.Instance).ToList();
     }
 
     public Hover? Hover(TextDocumentPositionParams request)
     {
-        if (!_documents.TryGet(request.TextDocument.Uri, out var document) || document is null)
-            return null;
-
-        var symbol = document.ResolveSymbolAt(request.Position, _documents.All);
+        var symbol = ResolveSymbol(request);
         if (symbol is null)
             return null;
 
@@ -61,6 +45,14 @@ public sealed class RtmLanguageService
             },
             Range = symbol.Location.Range
         };
+    }
+
+    private RtmSymbol? ResolveSymbol(TextDocumentPositionParams request)
+    {
+        if (!_documents.TryGet(request.TextDocument.Uri, out var document) || document is null)
+            return null;
+
+        return document.ResolveSymbolAt(request.Position, _documents.All);
     }
 
     private static string BuildHoverMarkdown(RtmSymbol symbol)
