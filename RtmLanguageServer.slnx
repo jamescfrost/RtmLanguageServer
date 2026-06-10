@@ -16,6 +16,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/RtmLanguageServer.Core.UnitTests/RtmLanguageServer.Core.UnitTests.csproj" />
+    <Project Path="tests/RtmLanguageServer.IntegrationTests/RtmLanguageServer.IntegrationTests.csproj" Id="2bf93fae-bc38-4baf-9162-a4a533133d57" />
     <Project Path="tests/RtmLanguageServer.Protocol.UnitTests/RtmLanguageServer.Protocol.UnitTests.csproj" Id="380a7764-b8b8-4f1e-b639-63cf03e4f84a" />
   </Folder>
 </Solution>
