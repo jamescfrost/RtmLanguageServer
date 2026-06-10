@@ -1,3 +1,4 @@
+using RtmLanguageServer.Core.Analysis;
 using RtmLanguageServer.Core.Common;
 
 namespace RtmLanguageServer.Core.Symbols;
@@ -13,7 +14,7 @@ public sealed record FieldSymbol(
     public int[]? Dimensions { get; set; }
     public string? AssignedFrom { get; set; }
 
-    public override string GetMarkdown()
+    public override string GetMarkdown(SymbolIndex? index = null)
     {
         var parts = new List<string> { $"`{Name}`" };
 

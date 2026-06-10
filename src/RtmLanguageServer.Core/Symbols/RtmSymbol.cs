@@ -13,5 +13,5 @@ public abstract record RtmSymbol(
 
     public RtmScope? Scope { get; set; }
 
-    public abstract string GetMarkdown();
+    public abstract string GetMarkdown(SymbolIndex? index = null);
 }

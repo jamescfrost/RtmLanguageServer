@@ -1,3 +1,4 @@
+using RtmLanguageServer.Core.Analysis;
 using RtmLanguageServer.Core.Common;
 
 namespace RtmLanguageServer.Core.Symbols;
@@ -8,5 +9,5 @@ public sealed record UnknownSymbol(
     : RtmSymbol(Name, Location)
 {
     public override string Label => "symbol";
-    public override string GetMarkdown() => $"**Symbol:** {Name}";
+    public override string GetMarkdown(SymbolIndex? index = null) => $"`{Name}`";
 }

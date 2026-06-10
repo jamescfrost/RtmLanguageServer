@@ -1,3 +1,4 @@
+using RtmLanguageServer.Core.Analysis;
 using RtmLanguageServer.Core.Common;
 
 namespace RtmLanguageServer.Core.Symbols;
@@ -9,19 +10,18 @@ public sealed record OverlaySymbol(
 {
     public override string Label => "overlay";
 
-    public override string GetMarkdown() => $"`{Name}{GetParametersMarkdown()}`";
+    public override string GetMarkdown(SymbolIndex? index = null)
+    {
+        if (index is null)
+            return $"`{Name}(<Indeterminate Parameters>)`";
 
-    public List<RtmSymbol> Children { get; } = [];
+        // Find the child program to get the signature
+        var program = index.AllDefinitions
+            .OfType<ProgramSymbol>()
+            .FirstOrDefault(p => p.Overlay?.Name == Name);
 
-    public IEnumerable<FileSymbol> Files => Children.OfType<FileSymbol>();
-    public IEnumerable<ExternalSymbol> Externals => Children.OfType<ExternalSymbol>();
-    public IEnumerable<FieldSymbol> Fields => Children.OfType<FieldSymbol>();
-
-    public IEnumerable<ProcedureSymbol> Procedures =>
-        Children.OfType<ProcedureSymbol>().Where(p => p is not ProgramSymbol);
-
-    public ProgramSymbol? Program => Children.OfType<ProgramSymbol>().FirstOrDefault();
-    public IEnumerable<IncludeReference> Includes => Children.OfType<IncludeReference>();
-
-    private string GetParametersMarkdown() => Program?.GetParametersMarkdown() ?? "()";
+        return program is not null
+            ? $"`{Name}{program.GetParametersMarkdown()}`"
+            : $"`{Name}()`";
+    }
 }

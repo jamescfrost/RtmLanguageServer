@@ -1,11 +1,10 @@
+using RtmLanguageServer.Core.Analysis;
 using RtmLanguageServer.Core.Common;
 
 namespace RtmLanguageServer.Core.Symbols;
 
 public sealed record NameIncludeSymbol : RtmSymbol
 {
-    public List<RtmSymbol> Children { get; } = [];
-
     public NameIncludeSymbol(
         string name,
         Location location)
@@ -15,5 +14,5 @@ public sealed record NameIncludeSymbol : RtmSymbol
 
     public override string Label => "Name Include";
 
-    public override string GetMarkdown() => $"`$NAME {Name}`";
+    public override string GetMarkdown(SymbolIndex? index = null) => $"`$NAME {Name}`";
 }
