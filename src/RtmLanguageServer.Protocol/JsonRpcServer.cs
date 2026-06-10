@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using RtmLanguageServer.Core.Common;
 using RtmLanguageServer.Core.Parsing;
 
 namespace RtmLanguageServer.Protocol;
@@ -35,7 +34,8 @@ public sealed class JsonRpcServer
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
-        var backgroundTask = Task.Run(() => ProcessBackgroundNotificationsAsync(cancellationToken), cancellationToken);
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var backgroundTask = Task.Run(() => ProcessBackgroundNotificationsAsync(cts.Token), cts.Token);
 
         try
         {
@@ -48,7 +48,15 @@ public sealed class JsonRpcServer
         }
         finally
         {
-            await backgroundTask.ConfigureAwait(false);
+            cts.Cancel(); // Signal background task to stop
+            try
+            {
+                await backgroundTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected when cancelling
+            }
         }
     }
 
