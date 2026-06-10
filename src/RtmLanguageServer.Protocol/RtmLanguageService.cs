@@ -57,6 +57,10 @@ public sealed class RtmLanguageService
         // Process all symbols and references in the document
         foreach (var symbol in document.Index.AllDefinitions)
         {
+            // Skip $NAME symbols - keep them white
+            if (symbol is NameIncludeSymbol)
+                continue;
+
             // Add the symbol definition
             builder.AddToken(symbol.Location.Range, GetTokenType(symbol), isDefinition: true);
         }
@@ -64,6 +68,10 @@ public sealed class RtmLanguageService
         // Process all references
         foreach (var reference in document.Index.AllReferences)
         {
+            // Skip $INCLUDE references - keep them white
+            if (reference is IncludeReference)
+                continue;
+
             if (reference.ResolvedSymbol is not null)
             {
                 builder.AddToken(reference.Location.Range, GetTokenType(reference.ResolvedSymbol), isDefinition: false);
