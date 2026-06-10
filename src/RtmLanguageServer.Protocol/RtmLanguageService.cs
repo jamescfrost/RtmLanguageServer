@@ -116,42 +116,10 @@ public sealed class RtmLanguageService
         if (!string.IsNullOrWhiteSpace(detail))
             lines.Add(detail);
 
-        if (symbol is not OverlaySymbol && symbol.Overlay is not null)
-        {
-            lines.Add($"Overlay: `{symbol.Overlay.Name}`");
+        // Let the symbol add its specific hover details
+        symbol.AddHoverDetails(lines, index);
 
-            // If this is a procedure, show the parent program signature
-            if (symbol is ProcedureSymbol && symbol is not ProgramSymbol && index is not null)
-            {
-                var program = index.AllDefinitions
-                    .OfType<ProgramSymbol>()
-                    .FirstOrDefault(p => p.Overlay?.Name == symbol.Overlay.Name);
-
-                if (program is not null)
-                {
-                    lines.Add($"Program: `{program.Name}{program.GetParametersMarkdown()}`");
-                }
-            }
-        }
-
-        // Show overlay children summary
-        if (symbol is OverlaySymbol overlay2 && index is not null)
-        {
-            var children = index.AllDefinitions
-                .Where(s => s.Overlay?.Name == overlay2.Name && s is not OverlaySymbol)
-                .ToList();
-
-            if (children.Count > 0)
-            {
-                var childSummary = children
-                    .GroupBy(c => c.Label)
-                    .OrderBy(g => g.Key)
-                    .Select(g => $"{g.Count()} {g.Key}");
-
-                lines.Add($"Children: {string.Join(", ", childSummary)}");
-            }
-        }
-
+        // Universal: show where it's defined
         lines.Add($"Defined in `{DisplayUri(symbol.Location.Uri)}`");
 
         return string.Join("\n\n", lines);

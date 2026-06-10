@@ -1,3 +1,4 @@
+using System.Text;
 using RtmLanguageServer.Core.Analysis;
 using RtmLanguageServer.Core.Common;
 
@@ -16,17 +17,21 @@ public sealed record FieldSymbol(
 
     public override string GetMarkdown(SymbolIndex? index = null)
     {
-        var parts = new List<string> { $"`{Name}`" };
+        var builder = new StringBuilder();
+        builder.AppendLine($"`{Name}`");
+        var combinedEditMask = new StringBuilder();
+        var editMask = string.IsNullOrWhiteSpace(EditMask) ? "?" : EditMask;
+        combinedEditMask.Append(editMask);
+        foreach(var dimension in Dimensions ?? Array.Empty<int>())
+            combinedEditMask.Append($"*{dimension}");
 
-        if (!string.IsNullOrWhiteSpace(EditMask))
-            parts.Add($"mask `{EditMask}`");
-
-        if (Dimensions is { Length: > 0 })
-            parts.Add($"dimensions `{string.Join(" × ", Dimensions)}`");
-
+        builder.AppendLine($" `{combinedEditMask}`");
         if (!string.IsNullOrWhiteSpace(AssignedFrom))
-            parts.Add($"assigned from `{AssignedFrom}`");
+        {
+            builder.AppendLine();
+            builder.AppendLine($"assigned from `{AssignedFrom}`");
+        }
 
-        return string.Join("  ", parts);
+        return builder.ToString();
     }
 }

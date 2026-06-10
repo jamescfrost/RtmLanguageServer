@@ -24,4 +24,26 @@ public sealed record OverlaySymbol(
             ? $"`{Name}{program.GetParametersMarkdown()}`"
             : $"`{Name}()`";
     }
+
+    public override void AddHoverDetails(List<string> lines, SymbolIndex? index)
+    {
+        // Overlays don't show parent overlay info (base does nothing for OverlaySymbol)
+        // but they show children summary
+        if (index is null)
+            return;
+
+        var children = index.AllDefinitions
+            .Where(s => s.Overlay?.Name == Name && s is not OverlaySymbol)
+            .ToList();
+
+        if (children.Count > 0)
+        {
+            var childSummary = children
+                .GroupBy(c => c.Label)
+                .OrderBy(g => g.Key)
+                .Select(g => $"{g.Count()} {g.Key}");
+
+            lines.Add($"Children: {string.Join(", ", childSummary)}");
+        }
+    }
 }
