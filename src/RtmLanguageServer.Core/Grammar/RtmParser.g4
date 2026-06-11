@@ -252,6 +252,7 @@ identifier_expression
     : ID
     | FIELD_ID
     | AT_VARIABLE
+    | RTMFILE_NAME
     ;
 
 statement
@@ -295,7 +296,7 @@ never_statement
     ;
 
 assignable
-    : (FIELD_ID | ID | AT_VARIABLE) bracket_expression?
+    : (FIELD_ID | ID | AT_VARIABLE | RTMFILE_NAME) bracket_expression?
     ;
 
 bracket_expression

@@ -87,7 +87,7 @@ public sealed class RtmLanguageService
         ExternalSymbol => SemanticTokenTypes.Class,           // Overlays → green/teal like classes
         ProcedureSymbol => SemanticTokenTypes.Function,       // Procedures → function color
         FieldSymbol => SemanticTokenTypes.Property,           // Fields → property color
-        FileSymbol => SemanticTokenTypes.Namespace,           // Files → namespace color
+        FileSymbol => SemanticTokenTypes.Class,               // Files → green like overlays
         OverlaySymbol => SemanticTokenTypes.Namespace,        // Overlay containers → namespace color
         _ => SemanticTokenTypes.Variable                      // Fallback
     };

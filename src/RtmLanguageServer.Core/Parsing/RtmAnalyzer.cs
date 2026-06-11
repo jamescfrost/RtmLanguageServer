@@ -176,6 +176,20 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
 
     public override void EnterIdentifier_expression(RtmParser.Identifier_expressionContext context)
     {
+        // File references ($FILE.NAME) should be typed as FileReference
+        if (context.Start.Type == RtmLexer.RTMFILE_NAME)
+        {
+            Reference(
+                context.Start,
+                reference => new FileReference
+                {
+                    Name = reference.Name,
+                    Location = reference.Location,
+                    Overlay = _currentOverlay
+                });
+            return;
+        }
+
         Reference(
             context.Start,
             reference => new FieldReference
@@ -193,6 +207,20 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
         // references” misses common overlay-body usages such as FIELD = VALUE.
         if (IsProcedureSignatureParameter(context))
             return;
+
+        // File references ($FILE.NAME) should be typed as FileReference
+        if (context.Start.Type == RtmLexer.RTMFILE_NAME)
+        {
+            Reference(
+                context.Start,
+                reference => new FileReference
+                {
+                    Name = reference.Name,
+                    Location = reference.Location,
+                    Overlay = _currentOverlay
+                });
+            return;
+        }
 
         Reference(
             context.Start,
@@ -235,6 +263,22 @@ public sealed class RtmAnalyzer : RtmParserBaseListener
                 Location = reference.Location,
                 Overlay = _currentOverlay
             });
+    }
+
+    public override void EnterArgument(RtmParser.ArgumentContext context)
+    {
+        // Handle bare RTMFILE_NAME tokens in arguments (e.g., INIT($FILE))
+        if (context.RTMFILE_NAME() is not null)
+        {
+            Reference(
+                context.RTMFILE_NAME().Symbol,
+                reference => new FileReference
+                {
+                    Name = reference.Name,
+                    Location = reference.Location,
+                    Overlay = _currentOverlay
+                });
+        }
     }
 
     private void Define(
