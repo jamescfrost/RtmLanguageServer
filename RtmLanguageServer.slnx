@@ -4,10 +4,6 @@
     <File Path=".gitattributes" />
     <File Path=".gitignore" />
     <File Path="README.md" />
-    <File Path="SIMPLIFICATION_SUMMARY.md" />
-    <File Path="TEST_COVERAGE_ANALYSIS.md" />
-    <File Path="TEST_REORGANIZATION_SUMMARY.md" />
-    <File Path="TEST_SUMMARY.md" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src\RtmLanguageServer.App\RtmLanguageServer.App.csproj" />
