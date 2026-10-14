@@ -53,6 +53,32 @@ dotnet run --project src/RtmLanguageServer.App/RtmLanguageServer.App.csproj
 
 The server communicates over stdin/stdout using the Language Server Protocol, as standard LSP servers do.
 
+## Installation & Quickstart
+
+Prerequisites:
+
+- .NET 10 SDK (or later)
+- Java 17+ on PATH (required only for ANTLR code generation during build)
+- A code editor that supports the Language Server Protocol (VS Code, Visual Studio, etc.)
+
+Build and run locally:
+
+```bash
+dotnet restore
+dotnet build
+dotnet run --project src/RtmLanguageServer.App/RtmLanguageServer.App.csproj
+```
+
+Quickstart (VS Code)
+
+1. Clone this repository and build the server (see commands above).
+2. Install or run a client extension that launches the server for the `rtm` language (see recommended extension below).
+3. Open an `.rtm` file and the client will start the language server; features such as Go to Definition, Find References and Hover will be available.
+
+If you prefer to point a custom VS Code extension at the built executable, use the compiled executable or a dotnet run command in the extension's serverOptions.
+
+<!-- Recommended language extension referenced below in Client integration section -->
+
 ## Grammar
 
 The grammar files are located in the Core library:
@@ -84,53 +110,23 @@ References are collected from:
 
 This is deliberately broad. The next useful refinement is adding lexical/scope rules so local proc parameters do not collide with fields or other procedures.
 
-## VS Code Client Setup
+## Client integration / RtmLanguageExtension
 
-Create a small VS Code extension and point the client command at the built executable:
+This repository contains the language server only. The recommended client is the companion project [RtmLanguageExtension](https://github.com/jamescfrost/RtmLanguageExtension), which is configured to look for the language server binary in the extension's `server` folder.
 
-**TypeScript Example:**
+To integrate the built server with that extension, publish or copy the compiled output into the extension's server directory. Example (PowerShell, from repository root):
 
-```ts
-import * as vscode from 'vscode';
-import * as lc from 'vscode-languageclient/node';
+```powershell
+# Build and publish framework-dependent output to the extension's server folder
+dotnet publish src/RtmLanguageServer.App/RtmLanguageServer.App.csproj -c Release -o ../RtmLanguageExtension/server
 
-let client: lc.LanguageClient;
-
-export function activate(context: vscode.ExtensionContext) {
-  const serverOptions: lc.ServerOptions = {
-    command: 'dotnet',
-    args: ['run', '--project', '/absolute/path/to/src/RtmLanguageServer.App/RtmLanguageServer.App.csproj']
-  };
-
-  const clientOptions: lc.LanguageClientOptions = {
-    documentSelector: [{ scheme: 'file', language: 'rtm' }],
-    synchronize: {
-      fileEvents: vscode.workspace.createFileSystemWatcher('**/*.{rtm,zug}')
-    }
-  };
-
-  client = new lc.LanguageClient(
-    'rtmLanguageServer',
-    'RTM Language Server',
-    serverOptions,
-    clientOptions
-  );
-
-  context.subscriptions.push(client.start());
-}
-
-export function deactivate() {
-  return client?.stop();
-}
+# Alternatively, publish a self-contained executable (Windows x64 example)
+dotnet publish src/RtmLanguageServer.App/RtmLanguageServer.App.csproj -c Release -r win-x64 --self-contained true -o ../RtmLanguageExtension/server
 ```
 
-**Alternative: Use the compiled executable:**
+When the RtmLanguageExtension is launched (for example in VS Code Extension Development Host), it will look in its `server` folder and start the server executable found there. This makes it easy to iterate on the server implementation without changing the extension's code.
 
-```ts
-const serverOptions: lc.ServerOptions = {
-  command: '/absolute/path/to/RtmLanguageServer.exe' // or .dll on non-Windows
-};
-```
+Note: The relative path above assumes both repositories are checked out side-by-side (../RtmLanguageExtension). Adjust the output path to match your local layout if different.
 
 ## Code Style
 
@@ -206,3 +202,7 @@ For development, you can use the following `dotnet run` command with arguments:
 ```bash
 dotnet run --project src/RtmLanguageServer.App/RtmLanguageServer.App.csproj
 ```
+
+Contributing
+
+Contributions are welcome. Please open issues for bugs or feature requests and submit pull requests against the master branch. When contributing, prefer small, focused changes and include unit tests for parser/semantic changes where possible.
